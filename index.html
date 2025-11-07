@@ -141,24 +141,28 @@
 
     .pitch-and-labels {
       display: flex;
-      align-items: center;
+      align-items: stretch;
       gap: 16px;
     }
 
-    .zone-labels {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
+    .labels-container {
+      position: relative;
+      width: 130px;
+      height: 520px; /* match pitch height */
       font-size: 0.9rem;
       color: #333;
     }
 
     .zone-label {
-      min-width: 110px;
+      position: absolute;
+      left: 0;
+      right: 0;
       padding: 4px 8px;
       border-radius: 8px;
       background: #ffffff;
       box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+      transform: translateY(-50%);
+      box-sizing: border-box;
     }
 
     .zone-label strong {
@@ -226,7 +230,18 @@
       position: absolute;
       left: 0;
       right: 0;
-      /* No text inside now – just colored bands */
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2px;
+      box-sizing: border-box;
+    }
+
+    .zone span {
+      color: #ffffff;
+      font-weight: 600;
+      font-size: 0.9rem;
+      text-shadow: 0 0 3px rgba(0,0,0,0.35);
     }
 
     /* Neutral / non red-green palette */
@@ -254,6 +269,12 @@
       }
       .pitch-and-labels {
         flex-direction: row;
+      }
+      .labels-container {
+        height: 420px;
+      }
+      #pitch {
+        height: 420px;
       }
     }
   </style>
@@ -310,26 +331,26 @@
 
         <div class="ranges-row">
           <label for="yorker-from">Yorker</label>
-          <input id="yorker-from" type="number" step="0.1" min="0" value="0.0" />
-          <input id="yorker-to"   type="number" step="0.1" min="0" value="2.0" />
+          <input id="yorker-from" type="number" step="0.1" min="0" value="1.0" />
+          <input id="yorker-to"   type="number" step="0.1" min="0" value="3.0" />
         </div>
 
         <div class="ranges-row">
           <label for="full-from">Full</label>
-          <input id="full-from" type="number" step="0.1" min="0" value="2.0" />
-          <input id="full-to"   type="number" step="0.1" min="0" value="4.0" />
+          <input id="full-from" type="number" step="0.1" min="0" value="3.0" />
+          <input id="full-to"   type="number" step="0.1" min="0" value="6.0" />
         </div>
 
         <div class="ranges-row">
           <label for="good-from">Good</label>
-          <input id="good-from" type="number" step="0.1" min="0" value="4.0" />
-          <input id="good-to"   type="number" step="0.1" min="0" value="6.0" />
+          <input id="good-from" type="number" step="0.1" min="0" value="6.0" />
+          <input id="good-to"   type="number" step="0.1" min="0" value="9.0" />
         </div>
 
         <div class="ranges-row">
           <label for="short-from">Short</label>
-          <input id="short-from" type="number" step="0.1" min="0" value="6.0" />
-          <input id="short-to"   type="number" step="0.1" min="0" value="8.0" />
+          <input id="short-from" type="number" step="0.1" min="0" value="9.0" />
+          <input id="short-to"   type="number" step="0.1" min="0" value="12.0" />
         </div>
       </div>
     </div>
@@ -337,7 +358,7 @@
     <!-- Pitch visualization + external labels -->
     <div class="pitch-wrapper">
       <div class="pitch-and-labels">
-        <div class="zone-labels">
+        <div class="labels-container">
           <div class="zone-label zone-label-yorker">
             <strong>Yorker</strong> – <span class="zone-label-yorker-pct">0.0</span>%
           </div>
@@ -367,11 +388,11 @@
             <span></span><span></span><span></span>
           </div>
 
-          <!-- Length zones as colored bands (no text inside) -->
-          <div class="zone zone-yorker"></div>
-          <div class="zone zone-full"></div>
-          <div class="zone zone-good"></div>
-          <div class="zone zone-short"></div>
+          <!-- Length zones as colored bands with % inside -->
+          <div class="zone zone-yorker"><span class="zone-yorker-pct-text">0.0%</span></div>
+          <div class="zone zone-full"><span class="zone-full-pct-text">0.0%</span></div>
+          <div class="zone zone-good"><span class="zone-good-pct-text">0.0%</span></div>
+          <div class="zone zone-short"><span class="zone-short-pct-text">0.0%</span></div>
         </div>
       </div>
 
@@ -417,11 +438,25 @@
       short: document.querySelector('.zone-short')
     };
 
+    const zonePctText = {
+      yorker: document.querySelector('.zone-yorker-pct-text'),
+      full: document.querySelector('.zone-full-pct-text'),
+      good: document.querySelector('.zone-good-pct-text'),
+      short: document.querySelector('.zone-short-pct-text')
+    };
+
     const labelsPct = {
       yorker: document.querySelector('.zone-label-yorker-pct'),
       full: document.querySelector('.zone-label-full-pct'),
       good: document.querySelector('.zone-label-good-pct'),
       short: document.querySelector('.zone-label-short-pct')
+    };
+
+    const labelEls = {
+      yorker: document.querySelector('.zone-label-yorker'),
+      full: document.querySelector('.zone-label-full'),
+      good: document.querySelector('.zone-label-good'),
+      short: document.querySelector('.zone-label-short')
     };
 
     const totalPctLabel = document.getElementById('total-pct');
@@ -453,7 +488,6 @@
         from = clamp(from, 0, PITCH_LENGTH_M);
         to   = clamp(to,   0, PITCH_LENGTH_M);
 
-        // Ensure non-negative length
         if (to < from) {
           const temp = from;
           from = to;
@@ -467,7 +501,7 @@
 
       zoneKeys.forEach(key => {
         const zoneEl = zones[key];
-        const pct    = (parseFloat(pctInputs[key].value) || 0);
+        const pctVal = (parseFloat(pctInputs[key].value) || 0);
         const { from, to } = lengths[key];
 
         // Batter at TOP (0 m) → Bowler at BOTTOM (20.12 m)
@@ -478,8 +512,16 @@
         zoneEl.style.top    = topPct + '%';
         zoneEl.style.bottom = 'auto';
 
-        // Update external labels
-        labelsPct[key].textContent = pct.toFixed(1);
+        // Percentage text inside zone
+        zonePctText[key].textContent = pctVal.toFixed(1) + '%';
+
+        // External label alignment: centred at (from + to) / 2
+        const center = (from + to) / 2;
+        const centerTopPct = (center / PITCH_LENGTH_M) * 100;
+        labelEls[key].style.top = centerTopPct + '%';
+
+        // External label percentage
+        labelsPct[key].textContent = pctVal.toFixed(1);
       });
     }
 
