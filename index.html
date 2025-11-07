@@ -21,15 +21,8 @@
     }
 
     h1 {
-      margin: 20px 0 4px;
+      margin: 20px 0 16px;
       font-size: 1.8rem;
-      text-align: center;
-    }
-
-    .subtitle {
-      margin: 0 0 20px;
-      font-size: 0.9rem;
-      color: #666;
       text-align: center;
     }
 
@@ -137,7 +130,7 @@
       font-weight: 600;
     }
 
-    /* Pitch visualization */
+    /* Pitch + labels layout */
 
     .pitch-wrapper {
       display: flex;
@@ -146,21 +139,47 @@
       gap: 8px;
     }
 
+    .pitch-and-labels {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .zone-labels {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      font-size: 0.9rem;
+      color: #333;
+    }
+
+    .zone-label {
+      min-width: 110px;
+      padding: 4px 8px;
+      border-radius: 8px;
+      background: #ffffff;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+
+    .zone-label strong {
+      font-weight: 600;
+    }
+
     #pitch {
       position: relative;
-      width: 200px;
-      height: 402px; /* Arbitrary, but proportional – we scale by 20.12 m in JS */
+      width: 260px;
+      height: 520px; /* larger, same proportions */
       border: 2px solid #555;
       border-radius: 12px;
       overflow: hidden;
-      background: #dedede;
+      background: #e2c9a3; /* light pitch brown */
       box-shadow: 0 2px 6px rgba(0,0,0,0.06);
     }
 
     .pitch-background {
       position: absolute;
       inset: 0;
-      background: linear-gradient(to top, #d0d0d0 0%, #e5e5e5 40%, #f2f2f2 100%);
+      background: linear-gradient(to bottom, #e7d1aa 0%, #d9b88c 50%, #ccb082 100%);
     }
 
     .crease {
@@ -168,62 +187,53 @@
       left: 0;
       right: 0;
       height: 2px;
-      background: rgba(0,0,0,0.3);
+      background: rgba(60,40,25,0.6);
     }
 
-    .crease-label {
-      position: absolute;
-      left: 4px;
-      font-size: 0.7rem;
-      color: #555;
-      background: rgba(255,255,255,0.7);
-      padding: 1px 4px;
-      border-radius: 4px;
-    }
-
+    /* Batter's stumps at the TOP (0 m), bowler at the BOTTOM (20.12 m) */
     .crease-batting {
-      bottom: 0;
-    }
-    .crease-batting + .crease-label {
-      bottom: 4px;
+      top: 0;
     }
 
     .crease-bowling {
-      top: 0;
+      bottom: 0;
     }
-    .crease-bowling + .crease-label {
+
+    .stumps {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 3px;
+    }
+
+    .stumps-top {
       top: 4px;
+    }
+
+    .stumps-bottom {
+      bottom: 4px;
+    }
+
+    .stumps span {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: #4a3428; /* dark brown */
     }
 
     .zone {
       position: absolute;
       left: 0;
       right: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 2px;
-      box-sizing: border-box;
-      text-align: center;
-      color: #ffffff;
-      font-weight: 600;
-      font-size: 0.8rem;
-    }
-
-    .zone span {
-      text-shadow: 0 0 3px rgba(0,0,0,0.35);
-      line-height: 1.25;
+      /* No text inside now – just colored bands */
     }
 
     /* Neutral / non red-green palette */
-    .zone-yorker { background: #5c6bc0; }  /* blue */
-    .zone-full   { background: #29b6f6; }  /* light blue */
-    .zone-good   { background: #ffb74d; color: #2b2b2b; }  /* orange with dark text */
-    .zone-short  { background: #8d6e63; }  /* brown */
-
-    .zone-good span {
-      text-shadow: none;
-    }
+    .zone-yorker { background: rgba(92,107,192,0.9); }   /* blue */
+    .zone-full   { background: rgba(41,182,246,0.9); }   /* light blue */
+    .zone-good   { background: rgba(255,183,77,0.9); }   /* orange */
+    .zone-short  { background: rgba(141,110,99,0.9); }   /* brown */
 
     .meter-scale {
       font-size: 0.75rem;
@@ -242,21 +252,21 @@
       .pitch-wrapper {
         align-items: center;
       }
+      .pitch-and-labels {
+        flex-direction: row;
+      }
     }
   </style>
 </head>
 <body>
   <h1>Cricket Pitchmap Visualizer</h1>
-  <p class="subtitle">
-    Pitch length fixed at 20.12 m (adult regulation). Enter percentages and metre ranges for each length.
-  </p>
 
   <div class="container">
     <div class="controls">
       <!-- Percentages -->
       <div class="card">
         <h2>Length percentages</h2>
-        <small>Input the share of balls in each length zone. Total doesn’t have to be 100%, but it’s shown below.</small>
+        <small>Input the share of balls in each length zone. Total is shown below.</small>
 
         <div class="field-row">
           <label for="pct-yorker">Yorker</label>
@@ -324,27 +334,49 @@
       </div>
     </div>
 
-    <!-- Pitch visualization -->
+    <!-- Pitch visualization + external labels -->
     <div class="pitch-wrapper">
-      <div id="pitch">
-        <div class="pitch-background"></div>
+      <div class="pitch-and-labels">
+        <div class="zone-labels">
+          <div class="zone-label zone-label-yorker">
+            <strong>Yorker</strong> – <span class="zone-label-yorker-pct">0.0</span>%
+          </div>
+          <div class="zone-label zone-label-full">
+            <strong>Full</strong> – <span class="zone-label-full-pct">0.0</span>%
+          </div>
+          <div class="zone-label zone-label-good">
+            <strong>Good</strong> – <span class="zone-label-good-pct">0.0</span>%
+          </div>
+          <div class="zone-label zone-label-short">
+            <strong>Short</strong> – <span class="zone-label-short-pct">0.0</span>%
+          </div>
+        </div>
 
-        <!-- Creases at each end of the 20.12m -->
-        <div class="crease crease-batting"></div>
-        <div class="crease-label">Batter’s stumps (0 m)</div>
+        <div id="pitch">
+          <div class="pitch-background"></div>
 
-        <div class="crease crease-bowling"></div>
-        <div class="crease-label">Bowler’s stumps (20.12 m)</div>
+          <!-- Creases at each end of the 20.12m -->
+          <div class="crease crease-batting"></div>
+          <div class="crease crease-bowling"></div>
 
-        <!-- Length zones -->
-        <div class="zone zone-yorker"><span>Yorker<br>0.0%<br>0.0–2.0 m</span></div>
-        <div class="zone zone-full"><span>Full<br>0.0%<br>2.0–4.0 m</span></div>
-        <div class="zone zone-good"><span>Good<br>0.0%<br>4.0–6.0 m</span></div>
-        <div class="zone zone-short"><span>Short<br>0.0%<br>6.0–8.0 m</span></div>
+          <!-- Stumps as three small dots -->
+          <div class="stumps stumps-top">
+            <span></span><span></span><span></span>
+          </div>
+          <div class="stumps stumps-bottom">
+            <span></span><span></span><span></span>
+          </div>
+
+          <!-- Length zones as colored bands (no text inside) -->
+          <div class="zone zone-yorker"></div>
+          <div class="zone zone-full"></div>
+          <div class="zone zone-good"></div>
+          <div class="zone zone-short"></div>
+        </div>
       </div>
 
       <div class="meter-scale">
-        <span>0 m (batter) → 20.12 m (bowler)</span>
+        <span>Top: 0 m (batter) · Bottom: 20.12 m (bowler)</span>
       </div>
     </div>
   </div>
@@ -385,6 +417,13 @@
       short: document.querySelector('.zone-short')
     };
 
+    const labelsPct = {
+      yorker: document.querySelector('.zone-label-yorker-pct'),
+      full: document.querySelector('.zone-label-full-pct'),
+      good: document.querySelector('.zone-label-good-pct'),
+      short: document.querySelector('.zone-label-short-pct')
+    };
+
     const totalPctLabel = document.getElementById('total-pct');
 
     function clamp(value, min, max) {
@@ -414,7 +453,7 @@
         from = clamp(from, 0, PITCH_LENGTH_M);
         to   = clamp(to,   0, PITCH_LENGTH_M);
 
-        // Ensure at least zero-length, but don't auto-reorder – user controls that
+        // Ensure non-negative length
         if (to < from) {
           const temp = from;
           from = to;
@@ -424,7 +463,6 @@
         lengths[key] = { from, to };
       });
 
-      // Update zone elements
       const zoneKeys = ['yorker','full','good','short'];
 
       zoneKeys.forEach(key => {
@@ -432,21 +470,19 @@
         const pct    = (parseFloat(pctInputs[key].value) || 0);
         const { from, to } = lengths[key];
 
+        // Batter at TOP (0 m) → Bowler at BOTTOM (20.12 m)
         const heightPct  = ((to - from) / PITCH_LENGTH_M) * 100;
-        const bottomPct  = (from / PITCH_LENGTH_M) * 100;
+        const topPct     = (from / PITCH_LENGTH_M) * 100;
 
         zoneEl.style.height = heightPct + '%';
-        zoneEl.style.bottom = bottomPct + '%';
+        zoneEl.style.top    = topPct + '%';
+        zoneEl.style.bottom = 'auto';
 
-        const capitalised =
-          key.charAt(0).toUpperCase() + key.slice(1);
-
-        zoneEl.querySelector('span').innerHTML =
-          `${capitalised}<br>${pct.toFixed(1)}%<br>${from.toFixed(1)}–${to.toFixed(1)} m`;
+        // Update external labels
+        labelsPct[key].textContent = pct.toFixed(1);
       });
     }
 
-    // Attach listeners
     Object.values(pctInputs).forEach(input => {
       input.addEventListener('input', update);
     });
