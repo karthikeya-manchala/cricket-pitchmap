@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cricket Pitchmap Visualizer</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f5f5f5;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    h1 {
+      margin: 20px 0 10px;
+      color: #222;
+    }
+
+    .container {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 40px;
+      margin-bottom: 40px;
+    }
+
+    .inputs {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+
+    .inputs label {
+      display: block;
+      margin: 8px 0 4px;
+      font-weight: 600;
+    }
+
+    .inputs input {
+      width: 100px;
+      padding: 6px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      text-align: right;
+    }
+
+    #pitch {
+      position: relative;
+      width: 180px;
+      height: 400px;
+      border: 2px solid #555;
+      background: #e0e0e0;
+      display: flex;
+      flex-direction: column-reverse;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .zone {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: bold;
+      text-shadow: 0 0 3px rgba(0,0,0,0.4);
+    }
+
+    .yorker { background: #00796b; }
+    .full { background: #388e3c; }
+    .good { background: #fbc02d; color: #000; text-shadow: none; }
+    .short { background: #e64a19; }
+
+    .zone span {
+      font-size: 14px;
+      text-align: center;
+    }
+
+    .footer {
+      color: #777;
+      font-size: 13px;
+      margin-bottom: 20px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Cricket Pitchmap Visualizer</h1>
+  <div class="container">
+    <div class="inputs">
+      <label>Yorker balls</label>
+      <input id="yorker" type="number" value="0" min="0" />
+
+      <label>Full balls</label>
+      <input id="full" type="number" value="0" min="0" />
+
+      <label>Good balls</label>
+      <input id="good" type="number" value="0" min="0" />
+
+      <label>Short balls</label>
+      <input id="short" type="number" value="0" min="0" />
+    </div>
+
+    <div id="pitch">
+      <div class="zone short"><span>Short<br>0%</span></div>
+      <div class="zone good"><span>Good<br>0%</span></div>
+      <div class="zone full"><span>Full<br>0%</span></div>
+      <div class="zone yorker"><span>Yorker<br>0%</span></div>
+    </div>
+  </div>
+
+  <div class="footer">Adjust ball counts to update percentages</div>
+
+  <script>
+    const inputs = document.querySelectorAll('.inputs input');
+    const zones = {
+      yorker: document.querySelector('.yorker span'),
+      full: document.querySelector('.full span'),
+      good: document.querySelector('.good span'),
+      short: document.querySelector('.short span')
+    };
+
+    function update() {
+      const vals = Array.from(inputs).map(i => parseInt(i.value) || 0);
+      const total = vals.reduce((a,b) => a+b, 0);
+      const [y,f,g,s] = vals;
+
+      const perc = total > 0 ? {
+        yorker: ((y/total)*100).toFixed(1),
+        full: ((f/total)*100).toFixed(1),
+        good: ((g/total)*100).toFixed(1),
+        short: ((s/total)*100).toFixed(1)
+      } : {yorker:0, full:0, good:0, short:0};
+
+      zones.yorker.innerHTML = `Yorker<br>${perc.yorker}%`;
+      zones.full.innerHTML = `Full<br>${perc.full}%`;
+      zones.good.innerHTML = `Good<br>${perc.good}%`;
+      zones.short.innerHTML = `Short<br>${perc.short}%`;
+    }
+
+    inputs.forEach(i => i.addEventListener('input', update));
+  </script>
+</body>
+</html>
