@@ -6,9 +6,10 @@
   <title>Cricket Pitchmap Visualizer</title>
   <style>
     :root {
-      /* Full strip: popping crease to popping crease */
+      /* Geometry: popping crease to popping crease */
       --strip-length-m: 22.56;
-      --stump-offset-m: 1.22; /* stumps 1.22 m from each popping crease */
+      --stump-offset-m: 1.22;      /* from popping crease to stumps */
+      --pitch-length-m: 20.12;     /* stumps to stumps */
     }
 
     body {
@@ -143,8 +144,8 @@
 
     #pitch {
       position: relative;
-      width: 320px;
-      height: 640px; /* bigger so labels fit comfortably */
+      width: 340px;
+      height: 680px; /* big enough for labels */
       border: 2px solid #555;
       border-radius: 12px;
       overflow: hidden;
@@ -158,7 +159,7 @@
       background: linear-gradient(to bottom, #e7d1aa 0%, #d9b88c 50%, #ccb082 100%);
     }
 
-    /* Popping creases at each end */
+    /* Popping creases */
 
     .crease {
       position: absolute;
@@ -176,7 +177,8 @@
       bottom: 0; /* opposite popping crease */
     }
 
-    /* Wide guidelines at batter's end (short vertical ticks down from popping crease) */
+    /* Wide guidelines at batter's end */
+
     .wide-guideline {
       position: absolute;
       top: 0;
@@ -228,11 +230,11 @@
       line-height: 1.3;
     }
 
-    /* Neutral / non red-green palette */
+    /* Colours (no red/green) */
     .zone-yorker { background: rgba(92,107,192,0.9); }   /* blue */
     .zone-full   { background: rgba(41,182,246,0.9); }   /* light blue */
     .zone-good   { background: rgba(255,183,77,0.9); }   /* orange */
-    .zone-short  { background: rgba(240,98,146,0.9); }   /* PINK 💗 */
+    .zone-short  { background: rgba(240,98,146,0.9); }   /* pink */
 
     .meter-scale {
       font-size: 0.75rem;
@@ -253,8 +255,8 @@
         align-items: center;
       }
       #pitch {
-        width: 260px;
-        height: 520px;
+        width: 280px;
+        height: 560px;
       }
     }
   </style>
@@ -271,25 +273,25 @@
 
         <div class="field-row">
           <label for="pct-yorker">Yorker</label>
-          <input id="pct-yorker" type="number" step="0.1" min="0" value="0" />
+          <input id="pct-yorker" type="number" step="1" min="0" value="0" />
           <span class="unit">%</span>
         </div>
 
         <div class="field-row">
           <label for="pct-full">Full</label>
-          <input id="pct-full" type="number" step="0.1" min="0" value="0" />
+          <input id="pct-full" type="number" step="1" min="0" value="0" />
           <span class="unit">%</span>
         </div>
 
         <div class="field-row">
           <label for="pct-good">Good</label>
-          <input id="pct-good" type="number" step="0.1" min="0" value="0" />
+          <input id="pct-good" type="number" step="1" min="0" value="0" />
           <span class="unit">%</span>
         </div>
 
         <div class="field-row">
           <label for="pct-short">Short</label>
-          <input id="pct-short" type="number" step="0.1" min="0" value="0" />
+          <input id="pct-short" type="number" step="1" min="0" value="0" />
           <span class="unit">%</span>
         </div>
 
@@ -380,6 +382,7 @@
   <script>
     const STRIP_LENGTH_M = 22.56;   // popping to popping
     const STUMP_OFFSET_M = 1.22;    // from popping crease to stumps
+    const PITCH_LENGTH_M = 20.12;   // stumps to stumps
 
     const pctInputs = {
       yorker: document.getElementById('pct-yorker'),
@@ -424,16 +427,84 @@
     }
 
     function update() {
-      // Percentages (we'll display whole numbers)
-      const pYorker = parseFloat(pctInputs.yorker.value) || 0;
-      const pFull   = parseFloat(pctInputs.full.value)   || 0;
-      const pGood   = parseFloat(pctInputs.good.value)   || 0;
-      const pShort  = parseFloat(pctInputs.short.value)  || 0;
+      // Percentages (display as whole numbers)
+      const pYorker = Math.round(parseFloat(pctInputs.yorker.value) || 0);
+      const pFull   = Math.round(parseFloat(pctInputs.full.value)   || 0);
+      const pGood   = Math.round(parseFloat(pctInputs.good.value)   || 0);
+      const pShort  = Math.round(parseFloat(pctInputs.short.value)  || 0);
 
-      const pYorkerInt = Math.round(pYorker);
-      const pFullInt   = Math.round(pFull);
-      const pGoodInt   = Math.round(pGood);
-      const pShortInt  = Math.round(pShort);
+      const total = pYorker + pFull + pGood + pShort;
+      totalPctLabel.textContent = total.toString();
 
-      const total = pYorkerInt + pFullInt + pGoodInt + pShortInt;
-      tota
+      // Ranges & zone placement (inputs are metres from batter's stumps)
+      const lengths = {};
+      ['yorker','full','good','short'].forEach(key => {
+        let fromD = parseFloat(rangeInputs[key].from.value);
+        let toD   = parseFloat(rangeInputs[key].to.value);
+
+        if (isNaN(fromD)) fromD = 0;
+        if (isNaN(toD))   toD = fromD;
+
+        // Clamp to valid 0–20.12 m from stumps
+        fromD = clamp(fromD, 0, PITCH_LENGTH_M);
+        toD   = clamp(toD,   0, PITCH_LENGTH_M);
+
+        // Ensure fromD <= toD
+        if (toD < fromD) {
+          const tmp = fromD;
+          fromD = toD;
+          toD = tmp;
+        }
+
+        // Convert to absolute position along full strip (0 = batter's popping crease)
+        let absFrom = STUMP_OFFSET_M + fromD;
+        let absTo   = STUMP_OFFSET_M + toD;
+
+        absFrom = clamp(absFrom, 0, STRIP_LENGTH_M);
+        absTo   = clamp(absTo,   0, STRIP_LENGTH_M);
+
+        lengths[key] = { absFrom, absTo, fromD, toD };
+      });
+
+      const pctInts = { yorker: pYorker, full: pFull, good: pGood, short: pShort };
+
+      ['yorker','full','good','short'].forEach(key => {
+        const zoneEl = zones[key];
+        const { absFrom, absTo, fromD, toD } = lengths[key];
+
+        const heightPct  = ((absTo - absFrom) / STRIP_LENGTH_M) * 100;
+        const topPct     = (absFrom / STRIP_LENGTH_M) * 100;
+
+        zoneEl.style.height = heightPct + '%';
+        zoneEl.style.top    = topPct + '%';
+        zoneEl.style.bottom = 'auto';
+
+        const name = key.charAt(0).toUpperCase() + key.slice(1);
+        const pctDisplay = pctInts[key];
+
+        zoneEl.querySelector('span').innerHTML =
+          `${name}<br>${pctDisplay}%<br>${fromD.toFixed(1)}–${toD.toFixed(1)} m`;
+      });
+
+      // Stumps positions (1.22 m from each popping crease)
+      const batterStumpPct = (STUMP_OFFSET_M / STRIP_LENGTH_M) * 100;
+      const bowlerStumpPct = ((STRIP_LENGTH_M - STUMP_OFFSET_M) / STRIP_LENGTH_M) * 100;
+
+      stumpsTopEl.style.top = batterStumpPct + '%';
+      stumpsBottomEl.style.top = bowlerStumpPct + '%';
+    }
+
+    Object.values(pctInputs).forEach(input => {
+      input.addEventListener('input', update);
+    });
+
+    Object.values(rangeInputs).forEach(pair => {
+      pair.from.addEventListener('input', update);
+      pair.to.addEventListener('input', update);
+    });
+
+    // Initial render
+    update();
+  </script>
+</body>
+</html>
