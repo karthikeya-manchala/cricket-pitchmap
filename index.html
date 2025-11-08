@@ -150,8 +150,8 @@
 
     .zone {
       position: absolute;
-      left: 0;            /* now full width */
-      right: 0;           /* now full width */
+      left: 0;            /* full width */
+      right: 0;           /* full width */
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -174,31 +174,6 @@
       font-variant-numeric: tabular-nums;
       opacity: 0.9;
       margin-right: 10%;  /* keep % away from edge */
-    }
-
-    /* Info row below pitch */
-
-    .info-row {
-      font-size: 0.85rem;
-      color: #777;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 12px;
-      justify-content: center;
-      margin-top: -475px;
-    }
-
-    .info-row span {
-      white-space: nowrap;
-    }
-
-    .info-row .dot {
-      display: inline-block;
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      margin-right: 4px;
-      vertical-align: middle;
     }
 
     /* Controls */
@@ -320,14 +295,6 @@
       font-weight: 500;
     }
 
-    .color-swatch {
-      width: 18px;
-      height: 18px;
-      border-radius: 4px;
-      border: 1px solid rgba(0,0,0,0.12);
-      box-sizing: border-box;
-    }
-
     select {
       font-size: 0.78rem;
       padding: 2px 4px;
@@ -399,21 +366,6 @@
         <!-- Wide guidelines -->
         <div class="wide-guideline wide-guideline-left"></div>
         <div class="wide-guideline wide-guideline-right"></div>
-      </div>
-
-      <div class="info-row">
-        <span>
-          <span class="dot" id="legend-yorker"></span> Yorker
-        </span>
-        <span>
-          <span class="dot" id="legend-full"></span> Full
-        </span>
-        <span>
-          <span class="dot" id="legend-good"></span> Good
-        </span>
-        <span>
-          <span class="dot" id="legend-short"></span> Short
-        </span>
       </div>
     </div>
 
@@ -696,13 +648,15 @@
       const baseFontSizeRem = 0.9;
       const zoneFontSizeRem = baseFontSizeRem * textScale;
 
-      // 3D tilt
+      // 3D tilt + pitch scale
       const angle = parseFloat(tiltInput.value) || 0;
       tiltValue.textContent = angle.toFixed(0) + '°';
       const maxAngle = 60;
-      const baseOffset = -500;               // offset used at max tilt
+      const minScale = 0.6;               // when angle = 0°
+      const scale = minScale + (angle / maxAngle) * (1 - minScale);
+      const baseOffset = -500;            // offset used at max tilt
       const offset = (angle / maxAngle) * baseOffset;
-      pitchEl.style.transform = `translateY(${offset}px) rotateX(${angle}deg)`;
+      pitchEl.style.transform = `translateY(${offset}px) scale(${scale}) rotateX(${angle}deg)`;
 
       // Physical positions for stumps & stump-lines
       const bottomStumpsAbs = STUMP_OFFSET_M;
@@ -783,13 +737,6 @@
 
         zoneEl.style.background = hex;
         zoneEl.style.color = textColor;
-
-        // Legend dot colour
-        const legendDot = document.getElementById(`legend-${key}`);
-        if (legendDot) {
-          legendDot.style.backgroundColor = hex;
-          legendDot.style.border = '1px solid rgba(0,0,0,0.15)';
-        }
 
         // uniform font size (no depth-based scaling)
         zoneEl.style.fontSize = zoneFontSizeRem.toFixed(2) + 'rem';
