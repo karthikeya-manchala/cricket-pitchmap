@@ -632,7 +632,6 @@
 
     function update() {
       flipEnds = flipEndsInput.checked;
-      flipEndsInput.checked = true;
 
       // Percentages
       const pYorker = Math.round(parseFloat(pctInputs.yorker.value) || 0);
@@ -796,6 +795,7 @@
     flipEndsInput.addEventListener('change', update);
 
     // Initial render
+    flipEndsInput.checked = true;
     update();
   </script>
 </body>
