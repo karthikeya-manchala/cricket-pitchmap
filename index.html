@@ -133,7 +133,6 @@
       background: rgba(60,40,25,0.7);
     }
 
-    /* scaled out for wider pitch (was ±86px at 340px width) */
     .wide-guideline-left {
       left: calc(50% - 130px);
     }
@@ -340,10 +339,6 @@
       background: #fcfaf6;
     }
 
-    .muted {
-      color: #999;
-    }
-
     .badge {
       background: #f2e2c8;
       color: #7a5a2b;
@@ -546,18 +541,18 @@
         </div>
       </div>
 
-      <!-- text depth scaling slider -->
+      <!-- TEXT SIZE SLIDER -->
       <div class="depth-row" style="margin-top:14px; border-top:1px dashed #e0d7c8; padding-top:10px;">
-        <label for="depth-scale"
+        <label for="text-size"
                style="font-size:0.8rem; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; color:#777; display:block; margin-bottom:4px;">
-          Text depth scaling
+          Text size
         </label>
         <div style="display:flex; align-items:center; gap:8px; font-size:0.8rem;">
-          <input id="depth-scale" type="range" min="0" max="1.3" step="0.05" value="0.8" style="flex:1;">
-          <span id="depth-scale-value">0.8</span>
+          <input id="text-size" type="range" min="0.7" max="1.5" step="0.05" value="1.0" style="flex:1;">
+          <span id="text-size-value">1.00</span>
         </div>
         <div style="font-size:0.75rem; color:#999; margin-top:2px;">
-          Higher = relatively larger labels further from batter.
+          Adjust label size (same size for all zones).
         </div>
       </div>
     </div>
@@ -619,8 +614,9 @@
 
     const totalPctLabel = document.getElementById('total-pct');
 
-    const depthScaleInput = document.getElementById('depth-scale');
-    const depthScaleValue = document.getElementById('depth-scale-value');
+    // NEW: text size slider
+    const textSizeInput = document.getElementById('text-size');
+    const textSizeValue = document.getElementById('text-size-value');
 
     const flipEndsInput = document.getElementById('flip-ends');
     let flipEnds = false;
@@ -668,7 +664,7 @@
     function update() {
       flipEnds = flipEndsInput.checked;
 
-      // Percentages (display as whole numbers)
+      // Percentages
       const pYorker = Math.round(parseFloat(pctInputs.yorker.value) || 0);
       const pFull   = Math.round(parseFloat(pctInputs.full.value)   || 0);
       const pGood   = Math.round(parseFloat(pctInputs.good.value)   || 0);
@@ -677,11 +673,13 @@
       const total = pYorker + pFull + pGood + pShort;
       totalPctLabel.textContent = total.toString();
 
-      // Depth slider
-      const userScale = parseFloat(depthScaleInput.value) || 0;
-      depthScaleValue.textContent = userScale.toFixed(2);
+      // Text size (global for all zones)
+      const textScale = parseFloat(textSizeInput.value) || 1.0;
+      textSizeValue.textContent = textScale.toFixed(2);
+      const baseFontSizeRem = 0.9;
+      const zoneFontSizeRem = baseFontSizeRem * textScale;
 
-      // Physical positions for stumps & stump-lines (fixed, regardless of batter end)
+      // Physical positions for stumps & stump-lines
       const bottomStumpsAbs = STUMP_OFFSET_M;
       const topStumpsAbs    = STRIP_LENGTH_M - STUMP_OFFSET_M;
 
@@ -728,18 +726,18 @@
           absTo   = Math.max(near, far);
         }
 
-        lengths[key] = { absFrom, absTo, fromD, toD };
+        lengths[key] = { absFrom, absTo };
       });
 
       const pctInts = { yorker: pYorker, full: pFull, good: pGood, short: pShort };
 
-      // Zones geometry + labels + colours + font size scaling
+      // Zones geometry + labels + colours + text size
       ['yorker','full','good','short'].forEach(key => {
         const zoneEl = zones[key];
-        const { absFrom, absTo, fromD, toD } = lengths[key];
+        const { absFrom, absTo } = lengths[key];
 
         const heightPct = ((absTo - absFrom) / STRIP_LENGTH_M) * 100;
-        const topPct    = worldToCssTop(absTo);  // anchor at the end further from batter
+        const topPct    = worldToCssTop(absTo);
 
         zoneEl.style.height = heightPct + '%';
         zoneEl.style.top    = topPct + '%';
@@ -768,18 +766,15 @@
           legendDot.style.border = '1px solid rgba(0,0,0,0.15)';
         }
 
-        // text size scaling by distance (midpoint of range)
-        const distanceFromBatter = (fromD + toD) / 2;
-        const baseFontSizeRem = 0.9;
-        const scaleFactor = 1 + (distanceFromBatter / STRIP_LENGTH_M) * userScale;
-        zoneEl.style.fontSize = (baseFontSizeRem * scaleFactor).toFixed(2) + 'rem';
+        // uniform font size (no depth-based scaling)
+        zoneEl.style.fontSize = zoneFontSizeRem.toFixed(2) + 'rem';
       });
 
-      // Place stumps (physical positions, unchanged by flip)
+      // Place stumps
       stumpsBottomEl.style.top = worldToCssTop(bottomStumpsAbs) + '%';
       stumpsTopEl.style.top    = worldToCssTop(topStumpsAbs) + '%';
 
-      // Stump lines (physical)
+      // Stump lines
       stumpLineBottomEl.style.top = worldToCssTop(bottomLineAbs) + '%';
       stumpLineTopEl.style.top    = worldToCssTop(topLineAbs) + '%';
 
@@ -815,7 +810,7 @@
       sel.addEventListener('change', update);
     });
 
-    depthScaleInput.addEventListener('input', update);
+    textSizeInput.addEventListener('input', update);
     flipEndsInput.addEventListener('change', update);
 
     // Initial render
