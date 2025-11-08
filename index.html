@@ -447,7 +447,7 @@
         <span class="badge">Meters from batter's stumps</span>
       </div>
 
-      <!-- NEW: flip checkbox -->
+      <!-- Flip checkbox -->
       <div style="display:flex; justify-content:flex-end; align-items:center; gap:6px; font-size:0.8rem; margin-bottom:8px;">
         <input type="checkbox" id="flip-ends" />
         <label for="flip-ends" style="cursor:pointer;">Flip batter &amp; bowler ends</label>
@@ -634,20 +634,21 @@
 
     const totalPctLabel = document.getElementById('total-pct');
 
-    // depth slider elements
     const depthScaleInput = document.getElementById('depth-scale');
     const depthScaleValue = document.getElementById('depth-scale-value');
 
-    // NEW: flip ends checkbox
     const flipEndsInput = document.getElementById('flip-ends');
     let flipEnds = false;
+
+    const creaseBowlingEl = document.querySelector('.crease-bowling');
+    const creaseBattingEl = document.querySelector('.crease-batting');
 
     function clamp(value, min, max) {
       return Math.max(min, Math.min(max, value));
     }
 
     function stripToTopPct(absPos) {
-      // absPos: metres from batter's popping crease (0 = batter's crease, STRIP_LENGTH_M = bowler's crease)
+      // absPos: metres from batter's popping crease
       const frac = absPos / STRIP_LENGTH_M;
       // if flipEnds is true, batter is at the top; otherwise batter is at the bottom
       return flipEnds ? (frac * 100) : ((1 - frac) * 100);
@@ -684,6 +685,9 @@
     }
 
     function update() {
+      // ensure flipEnds reflects the checkbox state
+      flipEnds = flipEndsInput.checked;
+
       // Percentages (display as whole numbers)
       const pYorker = Math.round(parseFloat(pctInputs.yorker.value) || 0);
       const pFull   = Math.round(parseFloat(pctInputs.full.value)   || 0);
@@ -696,6 +700,21 @@
       // Update depth slider label
       const userScale = parseFloat(depthScaleInput.value) || 0;
       depthScaleValue.textContent = userScale.toFixed(2);
+
+      // Move creases depending on which end is batter
+      if (flipEnds) {
+        // batter at top
+        creaseBattingEl.style.top = '0';
+        creaseBattingEl.style.bottom = 'auto';
+        creaseBowlingEl.style.bottom = '0';
+        creaseBowlingEl.style.top = 'auto';
+      } else {
+        // batter at bottom (default)
+        creaseBattingEl.style.bottom = '0';
+        creaseBattingEl.style.top = 'auto';
+        creaseBowlingEl.style.top = '0';
+        creaseBowlingEl.style.bottom = 'auto';
+      }
 
       // Ranges & zone placement (inputs are metres from batter's stumps)
       const lengths = {};
@@ -718,7 +737,7 @@
         absFrom = clamp(absFrom, 0, STRIP_LENGTH_M);
         absTo   = clamp(absTo,   0, STRIP_LENGTH_M);
 
-        lengths[key] = { absFrom, absTo };
+        lengths[key] = { absFrom, absTo, fromD, toD };
       });
 
       const pctInts = { yorker: pYorker, full: pFull, good: pGood, short: pShort };
@@ -726,7 +745,7 @@
       // Update zones geometry + labels + colours + font size scaling
       ['yorker','full','good','short'].forEach(key => {
         const zoneEl = zones[key];
-        const { absFrom, absTo } = lengths[key];
+        const { absFrom, absTo, fromD, toD } = lengths[key];
 
         const heightPct  = ((absTo - absFrom) / STRIP_LENGTH_M) * 100;
         const topPct     = stripToTopPct(absTo);
@@ -758,39 +777,42 @@
           legendDot.style.border = '1px solid rgba(0,0,0,0.15)';
         }
 
-        // text size scaling by distance
-        const distanceFromBatter = absFrom; // metres from batter
+        // text size scaling by distance (use midpoint distance)
+        const distanceFromBatter = (fromD + toD) / 2;
         const baseFontSizeRem = 0.9;
-        // zones further away grow by up to +userScale factor
         const scaleFactor = 1 + (distanceFromBatter / STRIP_LENGTH_M) * userScale;
         zoneEl.style.fontSize = (baseFontSizeRem * scaleFactor).toFixed(2) + 'rem';
       });
 
-      // Stumps positions (1.22 m from each popping crease)
-      const batterStumpPct = stripToTopPct(STUMP_OFFSET_M);
-      const bowlerStumpPct = stripToTopPct(STRIP_LENGTH_M - STUMP_OFFSET_M);
+      // Stumps positions: 1.22 m from each popping crease
+      const batterStumpAbs = STUMP_OFFSET_M;
+      const bowlerStumpAbs = STRIP_LENGTH_M - STUMP_OFFSET_M;
 
-      // When flipEnds = false, batter is at bottom; when true, batter is at top
-      stumpsBottomEl.style.top = batterStumpPct + '%';
-      stumpsTopEl.style.top    = bowlerStumpPct + '%';
+      const batterStumpPct = stripToTopPct(batterStumpAbs);
+      const bowlerStumpPct = stripToTopPct(bowlerStumpAbs);
+
+      stumpsBottomEl.style.top = flipEnds ? bowlerStumpPct + '%' : batterStumpPct + '%';
+      stumpsTopEl.style.top    = flipEnds ? batterStumpPct + '%' : bowlerStumpPct + '%';
 
       // Stump lines: just in front of each set of stumps (0.25 m towards bowler)
       const LINE_OFFSET_M = 0.25;
-      const batterLineAbs = STUMP_OFFSET_M + LINE_OFFSET_M;
-      const bowlerLineAbs = STRIP_LENGTH_M - STUMP_OFFSET_M - LINE_OFFSET_M;
+      const batterLineAbs = batterStumpAbs + LINE_OFFSET_M;
+      const bowlerLineAbs = bowlerStumpAbs - LINE_OFFSET_M;
 
       const batterLinePct = stripToTopPct(batterLineAbs);
       const bowlerLinePct = stripToTopPct(bowlerLineAbs);
 
-      stumpLineBottomEl.style.top = batterLinePct + '%';
-      stumpLineTopEl.style.top    = bowlerLinePct + '%';
+      stumpLineBottomEl.style.top = flipEnds ? bowlerLinePct + '%' : batterLinePct + '%';
+      stumpLineTopEl.style.top    = flipEnds ? batterLinePct + '%' : bowlerLinePct + '%';
 
-      // Wide guidelines: from batter's popping crease up to batter stump-line
-      wideLeftEl.style.top  = batterLinePct + '%';
-      wideRightEl.style.top = batterLinePct + '%';
+      // Wide guidelines: always between batter's popping crease (abs=0) and batter stump-line
+      const creasePct = stripToTopPct(0);
+      const wideTopPct = Math.min(creasePct, batterLinePct);
+      const wideHeightPct = Math.abs(creasePct - batterLinePct);
 
-      const wideHeightPct = 100 - batterLinePct;
-      wideLeftEl.style.height  = wideHeightPct + '%';
+      wideLeftEl.style.top = wideTopPct + '%';
+      wideRightEl.style.top = wideTopPct + '%';
+      wideLeftEl.style.height = wideHeightPct + '%';
       wideRightEl.style.height = wideHeightPct + '%';
     }
 
@@ -807,14 +829,9 @@
       sel.addEventListener('change', update);
     });
 
-    // depth slider listener
     depthScaleInput.addEventListener('input', update);
 
-    // NEW: flip checkbox listener
-    flipEndsInput.addEventListener('change', () => {
-      flipEnds = flipEndsInput.checked;
-      update();
-    });
+    flipEndsInput.addEventListener('change', update);
 
     // Initial render
     update();
