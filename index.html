@@ -60,7 +60,7 @@
       background: #e2c9a3; /* light pitch brown */
       box-shadow: 0 4px 12px rgba(0,0,0,0.12);
       transform-origin: bottom center;
-      transform: translateY(-360px) rotateX(55deg); /* tilt for fake 3D */
+      transform: translateY(-500px) rotateX(55deg); /* tilt for fake 3D */
     }
 
     .pitch-background {
@@ -184,7 +184,7 @@
       flex-wrap: wrap;
       gap: 12px;
       justify-content: center;
-      margin-top: -320px;
+      margin-top: -475px;
     }
 
     .info-row span {
@@ -554,6 +554,21 @@
           </div>
         </div>
       </div>
+
+      <!-- NEW: text depth scaling slider -->
+      <div class="depth-row" style="margin-top:14px; border-top:1px dashed #e0d7c8; padding-top:10px;">
+        <label for="depth-scale"
+               style="font-size:0.8rem; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; color:#777; display:block; margin-bottom:4px;">
+          Text depth scaling
+        </label>
+        <div style="display:flex; align-items:center; gap:8px; font-size:0.8rem;">
+          <input id="depth-scale" type="range" min="0" max="0.6" step="0.05" value="0.30" style="flex:1;">
+          <span id="depth-scale-value">0.30</span>
+        </div>
+        <div style="font-size:0.75rem; color:#999; margin-top:2px;">
+          Higher = relatively larger labels further from batter.
+        </div>
+      </div>
     </div>
   </div>
 
@@ -613,6 +628,10 @@
 
     const totalPctLabel = document.getElementById('total-pct');
 
+    // NEW: depth slider elements
+    const depthScaleInput = document.getElementById('depth-scale');
+    const depthScaleValue = document.getElementById('depth-scale-value');
+
     function clamp(value, min, max) {
       return Math.max(min, Math.min(max, value));
     }
@@ -662,6 +681,10 @@
       const total = pYorker + pFull + pGood + pShort;
       totalPctLabel.textContent = total.toString();
 
+      // Update depth slider label
+      const userScale = parseFloat(depthScaleInput.value) || 0;
+      depthScaleValue.textContent = userScale.toFixed(2);
+
       // Ranges & zone placement (inputs are metres from batter's stumps)
       const lengths = {};
       ['yorker','full','good','short'].forEach(key => {
@@ -688,7 +711,7 @@
 
       const pctInts = { yorker: pYorker, full: pFull, good: pGood, short: pShort };
 
-      // Update zones geometry + labels + colours
+      // Update zones geometry + labels + colours + font size scaling
       ['yorker','full','good','short'].forEach(key => {
         const zoneEl = zones[key];
         const { absFrom, absTo } = lengths[key];
@@ -716,11 +739,19 @@
         zoneEl.style.background = hex;
         zoneEl.style.color = textColor;
 
+        // Legend dot colour
         const legendDot = document.getElementById(`legend-${key}`);
         if (legendDot) {
           legendDot.style.backgroundColor = hex;
           legendDot.style.border = '1px solid rgba(0,0,0,0.15)';
         }
+
+        // NEW: text size scaling by distance
+        const distanceFromBatter = absFrom; // metres from batter
+        const baseFontSizeRem = 0.9;
+        // zones further away grow by up to +userScale factor
+        const scaleFactor = 1 + (distanceFromBatter / STRIP_LENGTH_M) * userScale;
+        zoneEl.style.fontSize = (baseFontSizeRem * scaleFactor).toFixed(2) + 'rem';
       });
 
       // Stumps positions (1.22 m from each popping crease), batter now at bottom
@@ -762,6 +793,9 @@
     Object.values(colorInputs).forEach(sel => {
       sel.addEventListener('change', update);
     });
+
+    // NEW: depth slider listener
+    depthScaleInput.addEventListener('input', update);
 
     // Initial render
     update();
