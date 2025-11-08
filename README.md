@@ -1,1 +1,634 @@
 # cricket-pitchmap
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cricket Pitchmap Visualizer</title>
+  <style>
+    :root {
+      /* Geometry: popping crease to popping crease */
+      --strip-length-m: 22.56;
+      --stump-offset-m: 1.22;      /* from popping crease to stumps */
+      --pitch-length-m: 20.12;     /* stumps to stumps */
+    }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f5f5f7;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      color: #222;
+    }
+
+    h1 {
+      margin: 20px 0 16px;
+      font-size: 1.8rem;
+      text-align: center;
+    }
+
+    .container {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 32px;
+      margin-bottom: 40px;
+      padding: 0 16px;
+      box-sizing: border-box;
+    }
+
+    .controls {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      max-width: 420px;
+    }
+
+    .card {
+      background: #ffffff;
+      padding: 16px 18px;
+      border-radius: 12px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+    }
+
+    .card h2 {
+      margin: 0 0 10px;
+      font-size: 1rem;
+    }
+
+    .card small {
+      display: block;
+      margin-bottom: 8px;
+      color: #777;
+      font-size: 0.8rem;
+    }
+
+    .field-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin: 6px 0;
+      gap: 8px;
+    }
+
+    .field-row label {
+      font-size: 0.9rem;
+      flex: 1;
+    }
+
+    .field-row input,
+    .field-row select {
+      width: 110px;
+      padding: 4px 6px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      box-sizing: border-box;
+    }
+
+    .field-row input {
+      text-align: right;
+    }
+
+    .field-row span.unit {
+      font-size: 0.8rem;
+      color: #777;
+    }
+
+    .ranges-header {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr 1fr;
+      font-size: 0.8rem;
+      color: #777;
+      margin-bottom: 4px;
+    }
+
+    .ranges-row {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr 1fr;
+      align-items: center;
+      gap: 6px;
+      margin: 4px 0;
+    }
+
+    .ranges-row label {
+      font-size: 0.9rem;
+    }
+
+    .ranges-row input {
+      width: 100%;
+      padding: 4px 6px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      text-align: right;
+      box-sizing: border-box;
+    }
+
+    .total-pct {
+      margin-top: 10px;
+      font-size: 0.85rem;
+      color: #555;
+    }
+
+    .total-pct span {
+      font-weight: 600;
+    }
+
+    /* Pitch layout */
+
+    .pitch-wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+
+    #pitch {
+      position: relative;
+      width: 340px;
+      height: 680px; /* big enough for labels */
+      border: 2px solid #555;
+      border-radius: 12px;
+      overflow: hidden;
+      background: #e2c9a3; /* light pitch brown */
+      box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+    }
+
+    .pitch-background {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to bottom, #e7d1aa 0%, #d9b88c 50%, #ccb082 100%);
+    }
+
+    /* Popping creases */
+
+    .crease {
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: rgba(60,40,25,0.7);
+    }
+
+    .crease-batting {
+      top: 0;    /* batter's popping crease */
+    }
+
+    .crease-bowling {
+      bottom: 0; /* opposite popping crease */
+    }
+
+    /* Horizontal lines just in front of stumps */
+
+    .stump-line {
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: rgba(60,40,25,0.7);
+    }
+
+    /* Wide guidelines at batter's end */
+
+    .wide-guideline {
+      position: absolute;
+      width: 2px;
+      background: rgba(60,40,25,0.7);
+    }
+
+    .wide-guideline-left {
+      left: 22%;
+    }
+
+    .wide-guideline-right {
+      right: 22%;
+    }
+
+    .stumps {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 3px;
+    }
+
+    .stumps span {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: #4a3428; /* dark brown */
+    }
+
+    .zone {
+      position: absolute;
+      left: 0;
+      right: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 4px;
+      box-sizing: border-box;
+      text-align: center;
+    }
+
+    .zone span {
+      font-weight: 600;
+      font-size: 0.9rem;
+      line-height: 1.3;
+      text-shadow: 0 0 3px rgba(0,0,0,0.35);
+      color: #ffffff; /* default; may switch to dark based on colour */
+    }
+
+    @media (max-width: 768px) {
+      .container {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .pitch-wrapper {
+        align-items: center;
+      }
+      #pitch {
+        width: 280px;
+        height: 560px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>Cricket Pitchmap Visualizer</h1>
+
+  <div class="container">
+    <div class="controls">
+      <!-- Percentages -->
+      <div class="card">
+        <h2>Length percentages</h2>
+        <small>Input the share of balls in each length zone. Total is shown below.</small>
+
+        <div class="field-row">
+          <label for="pct-yorker">Yorker</label>
+          <input id="pct-yorker" type="number" step="1" min="0" value="0" />
+          <span class="unit">%</span>
+        </div>
+
+        <div class="field-row">
+          <label for="pct-full">Full</label>
+          <input id="pct-full" type="number" step="1" min="0" value="0" />
+          <span class="unit">%</span>
+        </div>
+
+        <div class="field-row">
+          <label for="pct-good">Good</label>
+          <input id="pct-good" type="number" step="1" min="0" value="0" />
+          <span class="unit">%</span>
+        </div>
+
+        <div class="field-row">
+          <label for="pct-short">Short</label>
+          <input id="pct-short" type="number" step="1" min="0" value="0" />
+          <span class="unit">%</span>
+        </div>
+
+        <div class="total-pct">
+          Total: <span id="total-pct">0</span>%
+        </div>
+      </div>
+
+      <!-- Metre ranges (from batter's stumps) -->
+      <div class="card">
+        <h2>Length ranges (m)</h2>
+        <small>Lower / upper bounds measured from the batter’s stumps towards the bowler.</small>
+
+        <div class="ranges-header">
+          <div>Zone</div>
+          <div>From (m)</div>
+          <div>To (m)</div>
+        </div>
+
+        <div class="ranges-row">
+          <label for="yorker-from">Yorker</label>
+          <input id="yorker-from" type="number" step="0.1" min="0" value="1.0" />
+          <input id="yorker-to"   type="number" step="0.1" min="0" value="3.0" />
+        </div>
+
+        <div class="ranges-row">
+          <label for="full-from">Full</label>
+          <input id="full-from" type="number" step="0.1" min="0" value="3.0" />
+          <input id="full-to"   type="number" step="0.1" min="0" value="6.0" />
+        </div>
+
+        <div class="ranges-row">
+          <label for="good-from">Good</label>
+          <input id="good-from" type="number" step="0.1" min="0" value="6.0" />
+          <input id="good-to"   type="number" step="0.1" min="0" value="9.0" />
+        </div>
+
+        <div class="ranges-row">
+          <label for="short-from">Short</label>
+          <input id="short-from" type="number" step="0.1" min="0" value="9.0" />
+          <input id="short-to"   type="number" step="0.1" min="0" value="12.0" />
+        </div>
+      </div>
+
+      <!-- Colours -->
+      <div class="card">
+        <h2>Length colours</h2>
+        <small>Select a band colour for each length zone.</small>
+
+        <div class="field-row">
+          <label for="color-yorker">Yorker</label>
+          <select id="color-yorker">
+            <option value="#5c6bc0">Blue</option>
+            <option value="#29b6f6">Light blue</option>
+            <option value="#ffb74d">Orange</option>
+            <option value="#f06292">Pink</option>
+            <option value="#ab47bc">Purple</option>
+            <option value="#26a69a">Teal</option>
+            <option value="#e0e0e0">Light gray</option>
+          </select>
+        </div>
+
+        <div class="field-row">
+          <label for="color-full">Full</label>
+          <select id="color-full">
+            <option value="#29b6f6">Light blue</option>
+            <option value="#5c6bc0">Blue</option>
+            <option value="#ffb74d">Orange</option>
+            <option value="#f06292">Pink</option>
+            <option value="#ab47bc">Purple</option>
+            <option value="#26a69a">Teal</option>
+            <option value="#e0e0e0">Light gray</option>
+          </select>
+        </div>
+
+        <div class="field-row">
+          <label for="color-good">Good</label>
+          <select id="color-good">
+            <option value="#ffb74d">Orange</option>
+            <option value="#5c6bc0">Blue</option>
+            <option value="#29b6f6">Light blue</option>
+            <option value="#f06292">Pink</option>
+            <option value="#ab47bc">Purple</option>
+            <option value="#26a69a">Teal</option>
+            <option value="#e0e0e0">Light gray</option>
+          </select>
+        </div>
+
+        <div class="field-row">
+          <label for="color-short">Short</label>
+          <select id="color-short">
+            <option value="#f06292">Pink</option>
+            <option value="#5c6bc0">Blue</option>
+            <option value="#29b6f6">Light blue</option>
+            <option value="#ffb74d">Orange</option>
+            <option value="#ab47bc">Purple</option>
+            <option value="#26a69a">Teal</option>
+            <option value="#e0e0e0">Light gray</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pitch visualization -->
+    <div class="pitch-wrapper">
+      <div id="pitch">
+        <div class="pitch-background"></div>
+
+        <!-- Popping creases -->
+        <div class="crease crease-batting"></div>
+        <div class="crease crease-bowling"></div>
+
+        <!-- Horizontal stump lines (just in front of stumps) -->
+        <div class="stump-line stump-line-top"></div>
+        <div class="stump-line stump-line-bottom"></div>
+
+        <!-- Wide guidelines at batter's end (height set in JS so they touch stump-line-top) -->
+        <div class="wide-guideline wide-guideline-left"></div>
+        <div class="wide-guideline wide-guideline-right"></div>
+
+        <!-- Stumps as three small dots; vertical positions set in JS -->
+        <div class="stumps stumps-top">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="stumps stumps-bottom">
+          <span></span><span></span><span></span>
+        </div>
+
+        <!-- Length zones as colored bands with labels + % -->
+        <div class="zone zone-yorker">
+          <span>Yorker<br>0%</span>
+        </div>
+        <div class="zone zone-full">
+          <span>Full<br>0%</span>
+        </div>
+        <div class="zone zone-good">
+          <span>Good<br>0%</span>
+        </div>
+        <div class="zone zone-short">
+          <span>Short<br>0%</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const STRIP_LENGTH_M = 22.56;   // popping to popping
+    const STUMP_OFFSET_M = 1.22;    // from popping crease to stumps
+    const PITCH_LENGTH_M = 20.12;   // stumps to stumps
+
+    const pctInputs = {
+      yorker: document.getElementById('pct-yorker'),
+      full: document.getElementById('pct-full'),
+      good: document.getElementById('pct-good'),
+      short: document.getElementById('pct-short')
+    };
+
+    const rangeInputs = {
+      yorker: {
+        from: document.getElementById('yorker-from'),
+        to: document.getElementById('yorker-to')
+      },
+      full: {
+        from: document.getElementById('full-from'),
+        to: document.getElementById('full-to')
+      },
+      good: {
+        from: document.getElementById('good-from'),
+        to: document.getElementById('good-to')
+      },
+      short: {
+        from: document.getElementById('short-from'),
+        to: document.getElementById('short-to')
+      }
+    };
+
+    const colorInputs = {
+      yorker: document.getElementById('color-yorker'),
+      full: document.getElementById('color-full'),
+      good: document.getElementById('color-good'),
+      short: document.getElementById('color-short')
+    };
+
+    const zones = {
+      yorker: document.querySelector('.zone-yorker'),
+      full: document.querySelector('.zone-full'),
+      good: document.querySelector('.zone-good'),
+      short: document.querySelector('.zone-short')
+    };
+
+    const stumpsTopEl = document.querySelector('.stumps-top');
+    const stumpsBottomEl = document.querySelector('.stumps-bottom');
+
+    const stumpLineTopEl = document.querySelector('.stump-line-top');
+    const stumpLineBottomEl = document.querySelector('.stump-line-bottom');
+
+    const wideLeftEl = document.querySelector('.wide-guideline-left');
+    const wideRightEl = document.querySelector('.wide-guideline-right');
+
+    const totalPctLabel = document.getElementById('total-pct');
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function hexToLuminance(hex) {
+      // expects "#rrggbb" or "#rgb"
+      if (!hex || hex[0] !== '#' || (hex.length !== 7 && hex.length !== 4)) return 0;
+      let r, g, b;
+      if (hex.length === 7) {
+        r = parseInt(hex.substr(1,2), 16);
+        g = parseInt(hex.substr(3,2), 16);
+        b = parseInt(hex.substr(5,2), 16);
+      } else {
+        r = parseInt(hex[1] + hex[1], 16);
+        g = parseInt(hex[2] + hex[2], 16);
+        b = parseInt(hex[3] + hex[3], 16);
+      }
+      const sr = r / 255, sg = g / 255, sb = b / 255;
+      return 0.2126 * sr + 0.7152 * sg + 0.0722 * sb;
+    }
+
+    function update() {
+      // Percentages (display as whole numbers)
+      const pYorker = Math.round(parseFloat(pctInputs.yorker.value) || 0);
+      const pFull   = Math.round(parseFloat(pctInputs.full.value)   || 0);
+      const pGood   = Math.round(parseFloat(pctInputs.good.value)   || 0);
+      const pShort  = Math.round(parseFloat(pctInputs.short.value)  || 0);
+
+      const total = pYorker + pFull + pGood + pShort;
+      totalPctLabel.textContent = total.toString();
+
+      // Ranges & zone placement (inputs are metres from batter's stumps)
+      const lengths = {};
+      ['yorker','full','good','short'].forEach(key => {
+        let fromD = parseFloat(rangeInputs[key].from.value);
+        let toD   = parseFloat(rangeInputs[key].to.value);
+
+        if (isNaN(fromD)) fromD = 0;
+        if (isNaN(toD))   toD = fromD;
+
+        // Clamp to valid 0–20.12 m from stumps
+        fromD = clamp(fromD, 0, PITCH_LENGTH_M);
+        toD   = clamp(toD,   0, PITCH_LENGTH_M);
+
+        // Ensure fromD <= toD
+        if (toD < fromD) {
+          const tmp = fromD;
+          fromD = toD;
+          toD = tmp;
+        }
+
+        // Convert to absolute position along full strip (0 = batter's popping crease)
+        let absFrom = STUMP_OFFSET_M + fromD;
+        let absTo   = STUMP_OFFSET_M + toD;
+
+        absFrom = clamp(absFrom, 0, STRIP_LENGTH_M);
+        absTo   = clamp(absTo,   0, STRIP_LENGTH_M);
+
+        lengths[key] = { absFrom, absTo };
+      });
+
+      const pctInts = { yorker: pYorker, full: pFull, good: pGood, short: pShort };
+
+      // Update zones geometry + labels + colours
+      ['yorker','full','good','short'].forEach(key => {
+        const zoneEl = zones[key];
+        const { absFrom, absTo } = lengths[key];
+
+        const heightPct  = ((absTo - absFrom) / STRIP_LENGTH_M) * 100;
+        const topPct     = (absFrom / STRIP_LENGTH_M) * 100;
+
+        zoneEl.style.height = heightPct + '%';
+        zoneEl.style.top    = topPct + '%';
+        zoneEl.style.bottom = 'auto';
+
+        const name = key.charAt(0).toUpperCase() + key.slice(1);
+        const pctDisplay = pctInts[key];
+
+        // Label: name + whole-number %
+        zoneEl.querySelector('span').innerHTML =
+          `${name}<br>${pctDisplay}%`;
+
+        // Colour
+        const colorVal = colorInputs[key].value;
+        zoneEl.style.backgroundColor = colorVal;
+
+        // Choose text colour based on luminance
+        const lum = hexToLuminance(colorVal);
+        if (lum > 0.7) {
+          // very light -> dark text
+          zoneEl.querySelector('span').style.color = '#222';
+          zoneEl.querySelector('span').style.textShadow = 'none';
+        } else {
+          zoneEl.querySelector('span').style.color = '#ffffff';
+          zoneEl.querySelector('span').style.textShadow = '0 0 3px rgba(0,0,0,0.35)';
+        }
+      });
+
+      // Stumps positions (1.22 m from each popping crease)
+      const batterStumpPct = (STUMP_OFFSET_M / STRIP_LENGTH_M) * 100;
+      const bowlerStumpPct = ((STRIP_LENGTH_M - STUMP_OFFSET_M) / STRIP_LENGTH_M) * 100;
+
+      stumpsTopEl.style.top = batterStumpPct + '%';
+      stumpsBottomEl.style.top = bowlerStumpPct + '%';
+
+      // Stump lines: just in front of stumps (e.g. 0.1 m towards bowler)
+      const LINE_OFFSET_M = 0.25;
+      const topLineAbs = STUMP_OFFSET_M + LINE_OFFSET_M;
+      const bottomLineAbs = STRIP_LENGTH_M - STUMP_OFFSET_M - LINE_OFFSET_M;
+
+      const topLinePct = (topLineAbs / STRIP_LENGTH_M) * 100;
+      const bottomLinePct = (bottomLineAbs / STRIP_LENGTH_M) * 100;
+
+      stumpLineTopEl.style.top = topLinePct + '%';
+      stumpLineBottomEl.style.top = bottomLinePct + '%';
+
+      // Wide guidelines from popping crease down to top stump line
+      wideLeftEl.style.top = '0%';
+      wideRightEl.style.top = '0%';
+      wideLeftEl.style.height = topLinePct + '%';
+      wideRightEl.style.height = topLinePct + '%';
+    }
+
+    Object.values(pctInputs).forEach(input => {
+      input.addEventListener('input', update);
+    });
+
+    Object.values(rangeInputs).forEach(pair => {
+      pair.from.addEventListener('input', update);
+      pair.to.addEventListener('input', update);
+    });
+
+    Object.values(colorInputs).forEach(sel => {
+      sel.addEventListener('change', update);
+    });
+
+    // Initial render
+    update();
+  </script>
+</body>
+</html>
