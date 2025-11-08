@@ -2,801 +2,1233 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <title>Cricket Field & Fielder Placement Visualizer</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Cricket Pitchmap Visualizer</title>
   <style>
     :root {
-      /* Geometry: popping crease to popping crease */
-      --strip-length-m: 22.56;
-      --stump-offset-m: 1.22;      /* from popping crease to stumps */
-      --pitch-length-m: 20.12;     /* stumps to stumps */
+      --field-radius-m: 68;
+      --inner-circle-m: 27.432; /* 30 yards */
     }
+
+    * { box-sizing: border-box; }
 
     body {
+      margin: 0;
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       background: #f6f3ed;
-      margin: 0;
-      padding: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
       color: #222;
-    }
-
-    h1 {
-      margin: 20px 0 16px;
-      font-size: 1.8rem;
-      text-align: center;
-    }
-
-    .container {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 24px;
-      justify-content: center;
-      padding: 16px;
-      max-width: 1400px;
-      width: 100%;
-      box-sizing: border-box;
-    }
-
-    /* Pitch layout */
-
-    .pitch-wrapper {
       display: flex;
       flex-direction: column;
+      align-items: stretch;
+      min-height: 100vh;
+    }
+
+    h1 { margin: 16px 0 0; text-align: center; font-size: 1.8rem; }
+    .subtitle { text-align: center; color: #666; margin: 4px 0 10px; font-size: 0.9rem; }
+
+    .layout {
+      display: flex;
+      flex: 1;
+      padding: 12px 16px 20px;
+      gap: 16px;
+    }
+
+    @media (max-width: 900px) {
+      .layout { flex-direction: column; }
+    }
+
+    .field-wrapper {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 400px;
+    }
+
+    .field-card {
+      background: #ffffff;
+      border-radius: 16px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+      padding: 12px;
+      width: 100%;
+      max-width: 640px;
+      aspect-ratio: 1 / 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #fieldSvg {
+      width: 100%;
+      height: 100%;
+      touch-action: none;
+    }
+
+    .controls {
+      flex: 0 0 320px;
+      max-width: 360px;
+      background: #ffffff;
+      border-radius: 16px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-height: calc(100vh - 120px);
+    }
+
+    @media (max-width: 900px) {
+      .controls { max-width: 100%; max-height: none; }
+    }
+
+    .controls-section {
+      margin-bottom: 8px;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 8px;
+    }
+    .controls-section:last-of-type {
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+
+    .controls-section h2 {
+      font-size: 1rem;
+      margin: 4px 0 6px;
+    }
+
+    .slider-row {
+      display: flex;
       align-items: center;
       gap: 8px;
-      perspective: 900px; /* 3D effect */
     }
 
-    #pitch {
-      position: relative;
-      width: 520px;   /* bigger pitch */
-      height: 1040px; /* bigger pitch */
-      border: 2px solid #555;
-      border-radius: 16px;
-      overflow: hidden;
-      background: #e2c9a3; /* light pitch brown */
-      box-shadow: 0 4px 12px rgba(0,0,0,0.12);
-      transform-origin: bottom center;
-      /* transform set dynamically via JS */
-    }
-
-    .pitch-background {
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(to bottom, #e7d1aa 0%, #d9b88c 50%, #ccb082 100%);
-    }
-
-    /* Popping creases */
-
-    .crease {
-      position: absolute;
-      left: 0;
-      right: 0;
-      height: 2px;
-      background: rgba(60,40,25,0.7);
-    }
-
-    .crease-bowling {
-      top: 0;
-    }
-
-    .crease-batting {
-      bottom: 0;
-    }
-
-    /* Minimalist stumps: three dots */
-
-    .stumps {
-      position: absolute;
-      left: 50%;
-      width: 32px;
-      height: 14px;
-      margin-left: -16px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      pointer-events: none;
-    }
-
-    .stump-dot {
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: #222;
-      box-shadow: 0 0 2px rgba(0,0,0,0.4);
-    }
-
-    .stumps-top { /* top set via JS */ }
-    .stumps-bottom { /* bottom set via JS */ }
-
-    /* Stump lines just in front of the stumps */
-
-    .stump-line {
-      position: absolute;
-      left: 0;
-      right: 0;
-      height: 2px;
-      background: rgba(60,40,25,0.7);
-    }
-
-    .stump-line-top { /* top via JS */ }
-    .stump-line-bottom { /* bottom via JS */ }
-
-    /* Wide guidelines */
-
-    .wide-guideline {
-      position: absolute;
-      width: 2px;
-      background: rgba(60,40,25,0.7);
-    }
-
-    .wide-guideline-left {
-      left: calc(50% - 130px);
-    }
-
-    .wide-guideline-right {
-      left: calc(50% + 130px);
-    }
-
-    /* Zones */
-
-    .zones {
-      position: absolute;
-      inset: 0;
-    }
-
-    .zone {
-      position: absolute;
-      left: 0;            /* full width */
-      right: 0;           /* full width */
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      box-sizing: border-box;
-      padding: 0 12px;
-      border-top: 1px solid rgba(80,50,30,0.4);
-      border-bottom: 1px solid rgba(80,50,30,0.4);
-      font-size: 0.9rem;
-      letter-spacing: 0.02em;
-      text-transform: uppercase;
-      font-weight: 600;
-    }
-
-    .zone-label {
-      opacity: 0.92;
-      margin-left: 10%;   /* keep label away from edge */
-    }
-
-    .zone-pct {
-      font-variant-numeric: tabular-nums;
-      opacity: 0.9;
-      margin-right: 10%;  /* keep % away from edge */
-    }
-
-    /* Controls */
-
-    .controls-card {
-      flex: 1 1 350px;
-      max-width: 520px;
-      background: #fff;
-      border-radius: 12px;
-      padding: 16px 18px 20px;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.08);
-      border: 1px solid #e0d7c8;
-    }
-
-    .controls-card h2 {
-      margin: 0 0 12px;
-      font-size: 1.2rem;
-    }
-
-    .controls-grid {
-      display: grid;
-      grid-template-columns: 1.2fr 1.3fr 0.8fr;
-      gap: 10px 12px;
-      align-items: center;
+    .slider-row span {
       font-size: 0.85rem;
-    }
-
-    .controls-grid-header {
-      font-size: 0.75rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      color: #777;
-    }
-
-    .controls-grid label {
-      font-weight: 500;
-    }
-
-    .range-inputs {
-      display: flex;
-      gap: 6px;
-      align-items: center;
-      flex-wrap: wrap;
-    }
-
-    .range-inputs input[type="number"] {
-      width: 52px;
-    }
-
-    .pct-input {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      justify-content: flex-end;
-    }
-
-    .pct-input input[type="number"] {
-      width: 52px;
-    }
-
-    .range-inputs input[type="number"],
-    .pct-input input[type="number"] {
-      padding: 3px 4px;
-      font-size: 0.8rem;
-      border-radius: 6px;
-      border: 1px solid #c8b79a;
-      background: #fcfaf6;
-    }
-
-    .range-inputs span {
-      font-size: 0.8rem;
       color: #555;
     }
 
-    .total-row {
-      display: flex;
-      justify-content: flex-end;
-      margin-top: 10px;
-      font-size: 0.8rem;
-      color: #444;
+    input[type="range"] {
+      flex: 1;
     }
 
-    .total-row strong {
-      margin-left: 4px;
-      font-variant-numeric: tabular-nums;
+    label {
+      font-size: 0.85rem;
     }
 
-    .palette-row {
-      margin-top: 14px;
-      border-top: 1px dashed #e0d7c8;
-      padding-top: 10px;
-    }
-
-    .palette-row-title {
-      font-size: 0.8rem;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      color: #777;
-      margin-bottom: 6px;
-      font-weight: 600;
-    }
-
-    .palette-row-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px 12px;
-      font-size: 0.8rem;
-    }
-
-    .palette-item {
+    .mirror-toggle,
+    .small-row {
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      gap: 10px;
+      gap: 6px;
+      margin-top: 4px;
+      cursor: pointer;
+      font-size: 0.9rem;
     }
 
-    .palette-item span {
-      font-weight: 500;
+    .small-row {
+      cursor: default;
+      font-size: 0.8rem;
     }
 
-    select {
-      font-size: 0.78rem;
-      padding: 2px 4px;
-      border-radius: 6px;
-      border: 1px solid #c8b79a;
-      background: #fcfaf6;
+    .note {
+      font-size: 0.75rem;
+      color: #777;
+      margin-top: 2px;
     }
 
-    .badge {
-      background: #f2e2c8;
-      color: #7a5a2b;
-      border-radius: 999px;
-      padding: 2px 8px;
-      font-size: 0.7rem;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
+    .fielder-list {
+      overflow-y: auto;
+      padding-right: 4px;
+      max-height: 55vh;
+    }
+
+    .fielder-row {
+      border-radius: 10px;
+      padding: 6px 8px;
+      margin-bottom: 6px;
+      background: #faf7f3;
+      border: 1px solid #eee;
+    }
+
+    .fielder-row-header {
+      font-size: 0.85rem;
       font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .fielder-row label {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 2px 0;
+      font-size: 0.8rem;
+    }
+
+    .fielder-row input[type="text"] {
+      flex: 1;
+      margin-left: 6px;
+      padding: 2px 4px;
+      font-size: 0.8rem;
+    }
+
+    .fielder-row input[type="color"] {
+      margin-left: 6px;
+      width: 28px;
+      height: 20px;
+      padding: 0;
+      border: none;
+      background: transparent;
+    }
+
+    .fielder-row input[type="checkbox"] {
+      margin-left: 6px;
+    }
+
+    button {
+      font-family: inherit;
+      font-size: 0.8rem;
+      padding: 4px 8px;
+      border-radius: 8px;
+      border: 1px solid #ddd;
+      background: #f4f4f4;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #e9e9e9;
+    }
+
+    .arrow-list {
+      margin-top: 6px;
+      max-height: 160px;
+      overflow-y: auto;
+    }
+
+    .arrow-row {
+      border-radius: 8px;
+      border: 1px solid #eee;
+      padding: 4px 6px;
+      margin-top: 4px;
+      background: #fafafa;
+      font-size: 0.8rem;
+    }
+
+    .arrow-row-header {
+      font-weight: 600;
+      margin-bottom: 2px;
+    }
+
+    .arrow-row-controls {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 2px;
+    }
+
+    .arrow-row-controls input[type="color"] {
+      width: 24px;
+      height: 18px;
+      padding: 0;
+      border: none;
+      background: transparent;
+    }
+
+    .arrow-row-controls input[type="range"] {
+      flex: 1;
+    }
+
+    .arrow-line {
+      cursor: pointer;
+    }
+
+    .arrow-handle {
+      stroke-width: 0.3;
+      cursor: pointer;
+    }
+
+    .fielder-circle {
+      cursor: grab;
+    }
+
+    .wind-dir-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      font-size: 0.8rem;
     }
   </style>
 </head>
 <body>
-  <h1>Cricket Pitchmap Visualizer</h1>
+  <h1>Cricket Field Placement Visualizer</h1>
+  <div class="subtitle">Drag fielders, add arrows, highlight sectors & mirror for different batters.</div>
 
-  <div class="container">
-    <!-- Left: Pitch -->
-    <div class="pitch-wrapper">
-      <div id="pitch">
-        <div class="pitch-background"></div>
+  <div class="layout">
+    <!-- LEFT: Arrows, sector, wind -->
+    <div class="controls controls-left">
+      <div class="controls-section">
+        <h2>Arrows & Field Highlight</h2>
 
-        <!-- Creases -->
-        <div class="crease crease-bowling"></div>
-        <div class="crease crease-batting"></div>
+        <button type="button" id="addArrowBtn">Add arrow</button>
+        <div class="note">Drag arrow body to move; drag round ends to resize & rotate.</div>
+        <label class="small-row">
+          <input type="checkbox" id="hideArrowHandles" />
+          Hide arrow resize controls
+        </label>
+        <div id="arrowList" class="arrow-list"></div>
 
-        <!-- Zones -->
-        <div class="zones">
-          <div class="zone zone-yorker">
-            <span class="zone-label">Yorker</span>
-            <span class="zone-pct"><span class="zone-pct-value" data-zone="yorker">0</span>%</span>
-          </div>
-          <div class="zone zone-full">
-            <span class="zone-label">Full</span>
-            <span class="zone-pct"><span class="zone-pct-value" data-zone="full">0</span>%</span>
-          </div>
-          <div class="zone zone-good">
-            <span class="zone-label">Good</span>
-            <span class="zone-pct"><span class="zone-pct-value" data-zone="good">0</span>%</span>
-          </div>
-          <div class="zone zone-short">
-            <span class="zone-label">Short</span>
-            <span class="zone-pct"><span class="zone-pct-value" data-zone="short">0</span>%</span>
-          </div>
+        <h3 style="margin-top:8px;font-size:0.9rem;">Sector highlight</h3>
+        <label class="small-row">
+          <input type="checkbox" id="sectorEnabled" />
+          Enable sector (translucent yellow wedge)
+        </label>
+        <div class="slider-row">
+          <span>Start angle</span>
+          <input type="range" id="sectorStart" min="0" max="360" step="5" value="300" />
         </div>
-
-        <!-- Stumps & stump lines -->
-        <div class="stumps stumps-top">
-          <span class="stump-dot"></span>
-          <span class="stump-dot"></span>
-          <span class="stump-dot"></span>
+        <div class="slider-row">
+          <span>End angle</span>
+          <input type="range" id="sectorEnd" min="0" max="360" step="5" value="40" />
         </div>
-        <div class="stumps stumps-bottom">
-          <span class="stump-dot"></span>
-          <span class="stump-dot"></span>
-          <span class="stump-dot"></span>
+        <div class="note">Angles are from center, in degrees, around the full circle.</div>
+
+        <h3 style="margin-top:8px;font-size:0.9rem;">Wind</h3>
+        <label class="small-row">
+          <input type="checkbox" id="windVisible" checked />
+          Show wind legend
+        </label>
+        <div class="small-row" style="gap:10px;">
+          <span style="font-size:0.8rem;">Wind direction</span>
+          <label class="wind-dir-label">
+            <input type="radio" name="windDir" value="right" checked />
+            → right
+          </label>
+          <label class="wind-dir-label">
+            <input type="radio" name="windDir" value="left" />
+            ← left
+          </label>
         </div>
-
-        <div class="stump-line stump-line-top"></div>
-        <div class="stump-line stump-line-bottom"></div>
-
-        <!-- Wide guidelines -->
-        <div class="wide-guideline wide-guideline-left"></div>
-        <div class="wide-guideline wide-guideline-right"></div>
       </div>
     </div>
 
-    <!-- Right: Controls -->
-    <div class="controls-card">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-        <h2 style="margin:0;">Zone settings</h2>
-        <span class="badge">Meters from batter's stumps</span>
+    <!-- CENTER: Field -->
+    <div class="field-wrapper">
+      <div class="field-card">
+        <!-- widened viewBox so shifted boundary never clips -->
+        <svg id="fieldSvg" viewBox="-80 -80 160 160">
+          <defs>
+            <!-- per-arrow markers will be inserted here from JS -->
+          </defs>
+
+          <!-- Outer field (68m radius) -->
+          <circle
+            id="outerField"
+            cx="0" cy="0" r="68"
+            fill="#b7e0ab"
+            stroke="#0b6820" stroke-width="0.7"
+          ></circle>
+
+          <!-- Outer border -->
+          <circle
+            id="outerBorder"
+            cx="0" cy="0" r="68"
+            fill="none"
+            stroke="#1b4d1a"
+            stroke-width="1"
+          ></circle>
+
+          <!-- Inner 30-yard circle (stays centered) -->
+          <circle
+            id="innerCircle"
+            cx="0" cy="0" r="27.432"
+            fill="none"
+            stroke="#0b6820"
+            stroke-dasharray="1.2 1.2"
+            stroke-width="0.5"
+          ></circle>
+
+          <!-- Pitch -->
+          <rect
+            x="-2.5" y="-10" width="5" height="20"
+            rx="1.5" ry="1.5"
+            fill="#e0c6a2"
+            stroke="#b89463"
+            stroke-width="0.4"
+          ></rect>
+
+          <!-- Stumps -->
+          <rect x="-0.6" y="-10.5" width="1.2" height="1.3" fill="#444"></rect>
+          <rect x="-0.6" y="9.2"   width="1.2" height="1.3" fill="#444"></rect>
+
+          <!-- Side labels -->
+          <text
+            id="offLabel"
+            x="-40" y="0"
+            text-anchor="middle"
+            dominant-baseline="middle"
+            font-size="5"
+            fill="#004b23"
+            opacity="0.25"
+            style="letter-spacing: 2px;"
+          >OFF SIDE</text>
+
+          <text
+            id="legLabel"
+            x="40" y="0"
+            text-anchor="middle"
+            dominant-baseline="middle"
+            font-size="5"
+            fill="#7f1d1d"
+            opacity="0.25"
+            style="letter-spacing: 2px;"
+          >LEG SIDE</text>
+
+          <!-- Sector highlight path (pie slice) -->
+          <path id="sectorHighlight"
+                fill="#facc15"
+                opacity="0.3"
+                stroke="none"></path>
+
+          <!-- Minimal wind legend (top-right) -->
+          <g id="windLegend">
+            <text
+              id="windLabel"
+              x="60" y="-65"
+              text-anchor="middle"
+              font-size="4"
+              fill="#000000"
+            >Wind</text>
+            <!-- arrows centered around (0,0); positioned & rotated via transform -->
+            <g id="windArrowGroup" transform="translate(60,-60)">
+              <!-- upper arrow (thin, shorter, proper head at tip) -->
+              <line x1="-6" y1="-1.5" x2="6" y2="-1.5"
+                    stroke="#2563eb"
+                    stroke-width="0.8"
+                    stroke-linecap="round"></line>
+              <polygon points="7,-1.5 4,-3 4,0"
+                       fill="#2563eb"></polygon>
+
+              <!-- lower arrow, closer (less spacing) -->
+              <line x1="-6" y1="1.5" x2="6" y2="1.5"
+                    stroke="#2563eb"
+                    stroke-width="0.8"
+                    stroke-linecap="round"></line>
+              <polygon points="7,1.5 4,0 4,3"
+                       fill="#2563eb"></polygon>
+            </g>
+          </g>
+
+          <!-- Arrows -->
+          <g id="arrowsGroup"></g>
+
+          <!-- Fielders -->
+          <g id="fieldersGroup"></g>
+        </svg>
       </div>
+    </div>
 
-      <!-- Flip checkbox -->
-      <div style="display:flex; justify-content:flex-end; align-items:center; gap:6px; font-size:0.8rem; margin-bottom:8px;">
-        <input type="checkbox" id="flip-ends" />
-        <label for="flip-ends" style="cursor:pointer;">Flip batter &amp; bowler ends</label>
-      </div>
+    <!-- RIGHT: Global & Fielder controls -->
+    <div class="controls controls-right">
+      <!-- Global settings -->
+      <div class="controls-section">
+        <h2>Global Settings</h2>
 
-      <div class="controls-grid">
-        <div></div>
-        <div class="controls-grid-header">Length range (m)</div>
-        <div class="controls-grid-header" style="text-align:right;">% of balls</div>
-
-        <!-- Yorker -->
-        <label for="yorker-from">Yorker</label>
-        <div class="range-inputs">
-          <input id="yorker-from" type="number" step="0.01" min="0.00" max="10.00" value="1.00" />
-          <span>to</span>
-          <input id="yorker-to" type="number" step="0.01" min="0.00" max="10.00" value="3.00" />
-        </div>
-        <div class="pct-input">
-          <input id="pct-yorker" type="number" step="1" min="0" max="100" value="20" />
-          <span>%</span>
+        <div class="slider-row">
+          <span>Fielder size</span>
+          <input type="range" id="sizeSlider" min="1" max="2.5" step="0.2" value="2.0" />
         </div>
 
-        <!-- Full -->
-        <label for="full-from">Full</label>
-        <div class="range-inputs">
-          <input id="full-from" type="number" step="0.01" min="0.00" max="10.00" value="3.00" />
-          <span>to</span>
-          <input id="full-to" type="number" step="0.01" min="0.00" max="10.00" value="6.00" />
-        </div>
-        <div class="pct-input">
-          <input id="pct-full" type="number" step="1" min="0" max="100" value="30" />
-          <span>%</span>
+        <div class="slider-row">
+          <span>
+            Boundary offset:
+            <strong><span id="boundaryOffsetValue">0</span> m</strong>
+          </span>
+          <input type="range" id="boundaryOffset" min="-10" max="10" step="1" value="0" />
         </div>
 
-        <!-- Good -->
-        <label for="good-from">Good</label>
-        <div class="range-inputs">
-          <input id="good-from" type="number" step="0.01" min="0.00" max="10.00" value="6.00" />
-          <span>to</span>
-          <input id="good-to" type="number" step="0.01" min="0.00" max="10.00" value="9.00" />
-        </div>
-        <div class="pct-input">
-          <input id="pct-good" type="number" step="1" min="0" max="100" value="30" />
-          <span>%</span>
+        <!-- All fielder color -->
+        <div class="slider-row">
+          <span>All fielder color</span>
+          <input type="color" id="allFielderColor" value="#1d4ed8" />
         </div>
 
-        <!-- Short -->
-        <label for="short-from">Short</label>
-        <div class="range-inputs">
-          <input id="short-from" type="number" step="0.01" min="0.00" max="10.00" value="9.00" />
-          <span>to</span>
-          <input id="short-to" type="number" step="0.01" min="0.00" max="10.00" value="12.00" />
-        </div>
-        <div class="pct-input">
-          <input id="pct-short" type="number" step="1" min="0" max="100" value="20" />
-          <span>%</span>
-        </div>
-      </div>
-
-      <div class="total-row">
-        Total: <strong><span id="total-pct">100</span>%</strong>
-      </div>
-
-      <div class="palette-row">
-        <div class="palette-row-title">Colors by length</div>
-        <div class="palette-row-grid">
-          <div class="palette-item">
-            <span>Yorker</span>
-            <select id="color-yorker">
-              <option value="#5b8def">Blue</option>
-              <option value="#ef5b5b">Red</option>
-              <option value="#4caf50">Green</option>
-              <option value="#ffb74d">Orange</option>
-              <option value="#9e9e9e">Light gray</option>
-              <option value="#8d6e63">Brown</option>
-            </select>
-          </div>
-          <div class="palette-item">
-            <span>Full</span>
-            <select id="color-full">
-              <option value="#ef5b5b">Red</option>
-              <option value="#5b8def">Blue</option>
-              <option value="#4caf50">Green</option>
-              <option value="#ffb74d">Orange</option>
-              <option value="#9e9e9e">Light gray</option>
-              <option value="#8d6e63">Brown</option>
-            </select>
-          </div>
-          <div class="palette-item">
-            <span>Good</span>
-            <select id="color-good">
-              <option value="#4caf50">Green</option>
-              <option value="#5b8def">Blue</option>
-              <option value="#ef5b5b">Red</option>
-              <option value="#ffb74d">Orange</option>
-              <option value="#9e9e9e">Light gray</option>
-              <option value="#8d6e63">Brown</option>
-            </select>
-          </div>
-          <div class="palette-item">
-            <span>Short</span>
-            <select id="color-short">
-              <option value="#ffb74d">Orange</option>
-              <option value="#5b8def">Blue</option>
-              <option value="#ef5b5b">Red</option>
-              <option value="#4caf50">Green</option>
-              <option value="#9e9e9e">Light gray</option>
-              <option value="#8d6e63">Brown</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      <!-- TEXT SIZE SLIDER -->
-      <div class="depth-row" style="margin-top:14px; border-top:1px dashed #e0d7c8; padding-top:10px;">
-        <label for="text-size"
-               style="font-size:0.8rem; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; color:#777; display:block; margin-bottom:4px;">
-          Text size
+        <label class="mirror-toggle">
+          <input type="checkbox" id="mirrorToggle" />
+          Mirror field (off/leg & fielders)
         </label>
-        <div style="display:flex; align-items:center; gap:8px; font-size:0.8rem;">
-          <input id="text-size" type="range" min="0.7" max="1.5" step="0.05" value="1.5" style="flex:1;">
-          <span id="text-size-value">1.50</span>
-        </div>
-        <div style="font-size:0.75rem; color:#999; margin-top:2px;">
-          Adjust label size (same size for all zones).
-        </div>
-      </div>
-
-      <!-- 3D TILT SLIDER -->
-      <div class="tilt-row" style="margin-top:10px; border-top:1px dashed #e0d7c8; padding-top:10px;">
-        <label for="tilt-angle"
-               style="font-size:0.8rem; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; color:#777; display:block; margin-bottom:4px;">
-          3D tilt
+        <label class="mirror-toggle">
+          <input type="checkbox" id="hideAllLabels" />
+          Hide all fielder labels
         </label>
-        <div style="display:flex; align-items:center; gap:8px; font-size:0.8rem;">
-          <input id="tilt-angle" type="range" min="0" max="60" step="1" value="30" style="flex:1;">
-          <span id="tilt-angle-value">30°</span>
-        </div>
-        <div style="font-size:0.75rem; color:#999; margin-top:2px;">
-          0° = top-down, 60° = strong 3D tilt.
+
+        <!-- 11 vs 9 fielders (default 9) -->
+        <div class="small-row">
+          <span style="font-size:0.8rem;">Number of fielders</span>
+          <label>
+            <input type="radio" name="fielderCount" value="11" />
+            11
+          </label>
+          <label>
+            <input type="radio" name="fielderCount" value="9" checked />
+            9 (hide F10 &amp; F11)
+          </label>
         </div>
       </div>
 
+      <!-- Fielder controls -->
+      <div class="controls-section">
+        <h2>Fielder Controls</h2>
+        <div class="note">Drag circles on the field. Edit label, color, highlight & visibility here.</div>
+        <div class="fielder-list" id="fielderControls"></div>
+      </div>
     </div>
   </div>
 
   <script>
-    const STRIP_LENGTH_M = 22.56;   // popping to popping
-    const STUMP_OFFSET_M = 1.22;    // from popping crease to stumps
-    const LINE_OFFSET_M  = 0.25;    // stump line in front of stumps
+    (function () {
+      const SVG_NS = "http://www.w3.org/2000/svg";
 
-    const pctInputs = {
-      yorker: document.getElementById('pct-yorker'),
-      full: document.getElementById('pct-full'),
-      good: document.getElementById('pct-good'),
-      short: document.getElementById('pct-short')
-    };
+      const svg = document.getElementById("fieldSvg");
+      const defs = svg.querySelector("defs");
+      const outerFieldCircle = document.getElementById("outerField");
+      const outerBorderCircle = document.getElementById("outerBorder");
+      const innerCircle = document.getElementById("innerCircle");
 
-    const rangeInputs = {
-      yorker: {
-        from: document.getElementById('yorker-from'),
-        to: document.getElementById('yorker-to')
-      },
-      full: {
-        from: document.getElementById('full-from'),
-        to: document.getElementById('full-to')
-      },
-      good: {
-        from: document.getElementById('good-from'),
-        to: document.getElementById('good-to')
-      },
-      short: {
-        from: document.getElementById('short-from'),
-        to: document.getElementById('short-to')
+      const fieldersGroup = document.getElementById("fieldersGroup");
+      const arrowsGroup = document.getElementById("arrowsGroup");
+      const fielderControls = document.getElementById("fielderControls");
+      const sizeSlider = document.getElementById("sizeSlider");
+      const boundaryOffsetInput = document.getElementById("boundaryOffset");
+      const boundaryOffsetValue = document.getElementById("boundaryOffsetValue");
+      const allFielderColorInput = document.getElementById("allFielderColor");
+      const mirrorToggle = document.getElementById("mirrorToggle");
+      const hideAllLabels = document.getElementById("hideAllLabels");
+      const offLabel = document.getElementById("offLabel");
+      const legLabel = document.getElementById("legLabel");
+
+      const addArrowBtn = document.getElementById("addArrowBtn");
+      const hideArrowHandlesCheckbox = document.getElementById("hideArrowHandles");
+      const arrowList = document.getElementById("arrowList");
+
+      const sectorPath = document.getElementById("sectorHighlight");
+      const sectorEnabledCheckbox = document.getElementById("sectorEnabled");
+      const sectorStartInput = document.getElementById("sectorStart");
+      const sectorEndInput = document.getElementById("sectorEnd");
+
+      const windLegend = document.getElementById("windLegend");
+      const windArrowGroup = document.getElementById("windArrowGroup");
+      const windVisibleCheckbox = document.getElementById("windVisible");
+      const windDirectionInputs = document.querySelectorAll('input[name="windDir"]');
+
+      const fielderCountInputs = document.querySelectorAll('input[name="fielderCount"]');
+
+      const FIELD_RADIUS = 68;
+      const FIELDER_COUNT = 11;
+
+      let fielderSize = parseFloat(sizeSlider.value);
+      let isMirrored = false;
+      let labelsHiddenAll = false;
+      let fieldOffsetX = 0;
+      let fielderCountMode = 9; // default 9 fielders
+
+      const fielders = [];
+      let activeFielder = null;
+
+      const pt = svg.createSVGPoint();
+
+      // Arrows
+      const arrows = [];
+      let nextArrowId = 1;
+      let activeArrow = null;
+      let arrowDragMode = null; // "move" | "start" | "end"
+      let prevArrowPointer = null;
+
+      // Sector
+      let sectorEnabled = false;
+      let sectorStartDeg = parseFloat(sectorStartInput.value) || 0;
+      let sectorEndDeg = parseFloat(sectorEndInput.value) || 0;
+
+      // Wind
+      let windDirection = "right"; // "right" or "left"
+
+      function getSvgCoords(evt) {
+        pt.x = evt.clientX;
+        pt.y = evt.clientY;
+        const ctm = svg.getScreenCTM();
+        if (!ctm) return { x: 0, y: 0 };
+        const inv = ctm.inverse();
+        const p = pt.matrixTransform(inv);
+        return { x: p.x, y: p.y };
       }
-    };
 
-    const colorInputs = {
-      yorker: document.getElementById('color-yorker'),
-      full: document.getElementById('color-full'),
-      good: document.getElementById('color-good'),
-      short: document.getElementById('color-short')
-    };
-
-    const zones = {
-      yorker: document.querySelector('.zone-yorker'),
-      full: document.querySelector('.zone-full'),
-      good: document.querySelector('.zone-good'),
-      short: document.querySelector('.zone-short')
-    };
-
-    const stumpsTopEl = document.querySelector('.stumps-top');
-    const stumpsBottomEl = document.querySelector('.stumps-bottom');
-
-    const stumpLineTopEl = document.querySelector('.stump-line-top');
-    const stumpLineBottomEl = document.querySelector('.stump-line-bottom');
-
-    const wideLeftEl = document.querySelector('.wide-guideline-left');
-    const wideRightEl = document.querySelector('.wide-guideline-right');
-
-    const totalPctLabel = document.getElementById('total-pct');
-
-    const textSizeInput = document.getElementById('text-size');
-    const textSizeValue = document.getElementById('text-size-value');
-
-    // Tilt slider
-    const tiltInput = document.getElementById('tilt-angle');
-    const tiltValue = document.getElementById('tilt-angle-value');
-    const pitchEl = document.getElementById('pitch');
-
-    const flipEndsInput = document.getElementById('flip-ends');
-    let flipEnds = false;
-
-    function clamp(value, min, max) {
-      return Math.max(min, Math.min(max, value));
-    }
-
-    // Map physical distance along strip (0 = bottom crease, STRIP_LENGTH = top crease)
-    // to CSS top percentage (0 = top of div, 100 = bottom).
-    function worldToCssTop(s) {
-      return (1 - s / STRIP_LENGTH_M) * 100;
-    }
-
-    function getColorHex(name) {
-      switch (name) {
-        case '#5b8def': return '#5b8def';
-        case '#ef5b5b': return '#ef5b5b';
-        case '#4caf50': return '#4caf50';
-        case '#ffb74d': return '#ffb74d';
-        case '#9e9e9e': return '#9e9e9e';
-        case '#8d6e63': return '#8d6e63';
-        default: return '#5b8def';
+      function clampToCircle(x, y, radiusLimit) {
+        const r = Math.sqrt(x * x + y * y);
+        if (r <= radiusLimit) return { x, y };
+        const scale = radiusLimit / r;
+        return { x: x * scale, y: y * scale };
       }
-    }
 
-    function relativeLuminance(hex) {
-      if (!hex || hex[0] !== '#' || (hex.length !== 4 && hex.length !== 7)) {
-        return 0.5;
-      }
-      let r, g, b;
-      if (hex.length === 7) {
-        r = parseInt(hex.substr(1,2), 16);
-        g = parseInt(hex.substr(3,2), 16);
-        b = parseInt(hex.substr(5,2), 16);
-      } else {
-        r = parseInt(hex[1] + hex[1], 16);
-        g = parseInt(hex[2] + hex[2], 16);
-        b = parseInt(hex[3] + hex[3], 16);
-      }
-      const sr = r / 255, sg = g / 255, sb = b / 255;
-      return 0.2126 * sr + 0.7152 * sg + 0.0722 * sb;
-    }
+      // FIELDERS -----------------------------------------------------------------
+      function createInitialFielders() {
+        const ring = 35;
+        for (let i = 0; i < FIELDER_COUNT; i++) {
+          const angle = (2 * Math.PI * i) / FIELDER_COUNT;
+          const logicalX = ring * Math.cos(angle);
+          const logicalY = ring * Math.sin(angle);
 
-    function update() {
-      flipEnds = flipEndsInput.checked;
+          const ringCircle = document.createElementNS(SVG_NS, "circle");
+          ringCircle.setAttribute("fill", "none");
+          ringCircle.setAttribute("stroke", "#ef4444");
+          ringCircle.setAttribute("stroke-width", "0.5");
+          ringCircle.style.display = "none";
+          ringCircle.style.pointerEvents = "none";
 
-      // Percentages
-      const pYorker = Math.round(parseFloat(pctInputs.yorker.value) || 0);
-      const pFull   = Math.round(parseFloat(pctInputs.full.value)   || 0);
-      const pGood   = Math.round(parseFloat(pctInputs.good.value)   || 0);
-      const pShort  = Math.round(parseFloat(pctInputs.short.value)  || 0);
+          const circle = document.createElementNS(SVG_NS, "circle");
+          circle.setAttribute("r", fielderSize.toString());
+          circle.setAttribute("stroke", "#222");
+          circle.setAttribute("stroke-width", "0.4");
+          circle.setAttribute("fill", "#1d4ed8");
+          circle.dataset.index = i.toString();
+          circle.classList.add("fielder-circle");
 
-      const total = pYorker + pFull + pGood + pShort;
-      totalPctLabel.textContent = total.toString();
+          const label = document.createElementNS(SVG_NS, "text");
+          label.setAttribute("text-anchor", "middle");
+          label.setAttribute("dominant-baseline", "central");
+          label.setAttribute("font-size", (fielderSize * 1.5).toString());
+          label.setAttribute("fill", "#111");
+          label.style.pointerEvents = "none";
 
-      // Text size (global for all zones)
-      const textScale = parseFloat(textSizeInput.value) || 1.0;
-      textSizeValue.textContent = textScale.toFixed(2);
-      const baseFontSizeRem = 0.9;
-      const zoneFontSizeRem = baseFontSizeRem * textScale;
+          fieldersGroup.appendChild(ringCircle);
+          fieldersGroup.appendChild(circle);
+          fieldersGroup.appendChild(label);
 
-      // 3D tilt + pitch scale
-      const angle = parseFloat(tiltInput.value) || 0;
-      tiltValue.textContent = angle.toFixed(0) + '°';
-      const maxAngle = 60;
-      const minScale = 0.6;
-      const maxScale = 1;
-      
-      // how far up the pitch is at 0° vs 60°
-      const flatOffset = -420;       // tweak this
-      const maxTiltOffset = -420;    // tweak this
-      
-      const t = angle / maxAngle;
-      
-      const scale = minScale + t * (maxScale - minScale);
-      const offset = flatOffset + t * (maxTiltOffset - flatOffset);
-      
-      pitchEl.style.transform = `translateY(${offset}px) scale(${scale}) rotateX(${angle}deg)`;
-
-      // Physical positions for stumps & stump-lines
-      const bottomStumpsAbs = STUMP_OFFSET_M;
-      const topStumpsAbs    = STRIP_LENGTH_M - STUMP_OFFSET_M;
-
-      const bottomLineAbs = bottomStumpsAbs + LINE_OFFSET_M;
-      const topLineAbs    = topStumpsAbs - LINE_OFFSET_M;
-
-      // Ranges & zone placement (inputs are metres from batter's stumps)
-      const lengths = {};
-      ['yorker','full','good','short'].forEach(key => {
-        let fromD = parseFloat(rangeInputs[key].from.value);
-        let toD   = parseFloat(rangeInputs[key].to.value);
-
-        if (isNaN(fromD)) fromD = 0;
-        if (isNaN(toD))   toD   = 0;
-
-        if (fromD > toD) {
-          const tmp = fromD;
-          fromD = toD;
-          toD = tmp;
+          fielders.push({
+            i,
+            x: logicalX,
+            y: logicalY,
+            color: "#1d4ed8",
+            name: "",
+            hidden: false,
+            highlight: false,
+            ring: ringCircle,
+            circle,
+            label,
+          });
         }
 
-        let absFrom, absTo;
+        // Override with preset positions for F1–F9 to match the example layout
+        const presetPositions = [
+          { i: 0, x: 12,  y: -20 },   // F1 - short fine
+          { i: 1, x: -32,  y: -54 },  // F2 - deep third
+          { i: 2, x: -19,  y: -11 },  // F3 - backward point
+          { i: 3, x: -24, y: 0 },   // F4 - point
+          { i: 4, x: -20,   y: 13 },  // F5 - cover
+          { i: 5, x: -19, y: 59 },  // F6 - long off
+          { i: 6, x: -30, y: -56 }, // F7 - long on
+          { i: 7, x: 59,   y: -24 }, // F8 - deep midwicket
+          { i: 8, x: 61,  y: -16 }, // F9 - deep backward square
+          // F10 (9) and F11 (10) stay on the default ring
+        ];
 
-        if (!flipEnds) {
-          // Batter at bottom: distances measured from bottom stumps upward
-          let aFrom = bottomStumpsAbs + fromD;
-          let aTo   = bottomStumpsAbs + toD;
+        presetPositions.forEach(pos => {
+          const f = fielders[pos.i];
+          if (f) {
+            f.x = pos.x;
+            f.y = pos.y;
+          }
+        });
 
-          aFrom = clamp(aFrom, 0, STRIP_LENGTH_M);
-          aTo   = clamp(aTo,   0, STRIP_LENGTH_M);
+        updateAllFielders();
+      }
 
-          absFrom = Math.min(aFrom, aTo);
-          absTo   = Math.max(aFrom, aTo);
+      function updateSideLabels() {
+        const offX = isMirrored ? 40 : -40;
+        const legX = isMirrored ? -40 : 40;
+        offLabel.setAttribute("x", offX.toString());
+        legLabel.setAttribute("x", legX.toString());
+      }
+
+      function isFielderActive(f) {
+        if (fielderCountMode === 11) return true;
+        // 9-fielder mode: hide F10 & F11 (indices 9 and 10)
+        return f.i !== 9 && f.i !== 10;
+      }
+
+      function updateFielderVisual(f) {
+        // Hide fielders that are not active in current mode
+        if (!isFielderActive(f)) {
+          f.circle.style.display = "none";
+          f.label.style.display = "none";
+          f.ring.style.display = "none";
+          return;
         } else {
-          // Batter at top: distances measured from top stumps downward
-          const topStumps = topStumpsAbs;
-          let near = topStumps - fromD;
-          let far  = topStumps - toD;
-
-          near = clamp(near, 0, STRIP_LENGTH_M);
-          far  = clamp(far,  0, STRIP_LENGTH_M);
-
-          absFrom = Math.min(near, far);
-          absTo   = Math.max(near, far);
+          f.circle.style.display = "block";
         }
 
-        lengths[key] = { absFrom, absTo };
+        const displayX = isMirrored ? -f.x : f.x;
+        const displayY = f.y;
+
+        f.circle.setAttribute("cx", displayX.toString());
+        f.circle.setAttribute("cy", displayY.toString());
+        f.circle.setAttribute("r", fielderSize.toString());
+        f.circle.setAttribute("fill", f.color);
+
+        const txt = f.name.trim() || `F${f.i + 1}`;
+        f.label.textContent = txt;
+        f.label.setAttribute("x", displayX.toString());
+        f.label.setAttribute(
+          "y",
+          (displayY - (fielderSize + 2.0)).toString()
+        );
+        f.label.setAttribute(
+          "font-size",
+          (fielderSize * 1.5).toString()
+        );
+        f.label.style.display =
+          f.hidden || labelsHiddenAll ? "none" : "block";
+
+        if (f.highlight) {
+          f.ring.setAttribute("cx", displayX.toString());
+          f.ring.setAttribute("cy", displayY.toString());
+          f.ring.setAttribute("r", (fielderSize + 1.4).toString());
+          f.ring.style.display = "block";
+        } else {
+          f.ring.style.display = "none";
+        }
+      }
+
+      function updateAllFielders() {
+        fielders.forEach(updateFielderVisual);
+      }
+
+      function buildFielderControls() {
+        fielderControls.innerHTML = "";
+        fielders.forEach((f) => {
+          const row = document.createElement("div");
+          row.className = "fielder-row";
+
+          const header = document.createElement("div");
+          header.className = "fielder-row-header";
+          header.textContent = `Fielder ${f.i + 1}`;
+          row.appendChild(header);
+
+          const labelWrapper = document.createElement("label");
+          labelWrapper.textContent = "Label";
+          const labelInput = document.createElement("input");
+          labelInput.type = "text";
+          labelInput.placeholder = `F${f.i + 1}`;
+          labelInput.value = f.name;
+          labelInput.dataset.index = f.i.toString();
+          labelWrapper.appendChild(labelInput);
+          row.appendChild(labelWrapper);
+
+          const colorWrapper = document.createElement("label");
+          colorWrapper.textContent = "Color";
+          const colorInput = document.createElement("input");
+          colorInput.type = "color";
+          colorInput.value = f.color;
+          colorInput.dataset.index = f.i.toString();
+          colorWrapper.appendChild(colorInput);
+          row.appendChild(colorWrapper);
+
+          const hideWrapper = document.createElement("label");
+          hideWrapper.textContent = "Hide label";
+          const hideInput = document.createElement("input");
+          hideInput.type = "checkbox";
+          hideInput.checked = f.hidden;
+          hideInput.dataset.index = f.i.toString();
+          hideWrapper.appendChild(hideInput);
+          row.appendChild(hideWrapper);
+
+          const highlightWrapper = document.createElement("label");
+          highlightWrapper.textContent = "Highlight (red ring)";
+          const highlightInput = document.createElement("input");
+          highlightInput.type = "checkbox";
+          highlightInput.checked = f.highlight;
+          highlightInput.dataset.index = f.i.toString();
+          highlightWrapper.appendChild(highlightInput);
+          row.appendChild(highlightWrapper);
+
+          fielderControls.appendChild(row);
+
+          labelInput.addEventListener("input", (e) => {
+            const idx = parseInt(e.target.dataset.index, 10);
+            const ff = fielders[idx];
+            ff.name = e.target.value;
+            updateFielderVisual(ff);
+          });
+
+          colorInput.addEventListener("input", (e) => {
+            const idx = parseInt(e.target.dataset.index, 10);
+            const ff = fielders[idx];
+            ff.color = e.target.value;
+            updateFielderVisual(ff);
+          });
+
+          hideInput.addEventListener("change", (e) => {
+            const idx = parseInt(e.target.dataset.index, 10);
+            const ff = fielders[idx];
+            ff.hidden = e.target.checked;
+            updateFielderVisual(ff);
+          });
+
+          highlightInput.addEventListener("change", (e) => {
+            const idx = parseInt(e.target.dataset.index, 10);
+            const ff = fielders[idx];
+            ff.highlight = e.target.checked;
+            updateFielderVisual(ff);
+          });
+        });
+      }
+
+      // BOUNDARY OFFSET ----------------------------------------------------------
+      function updateFieldOffset() {
+        fieldOffsetX = parseFloat(boundaryOffsetInput.value) || 0;
+        outerFieldCircle.setAttribute("cx", fieldOffsetX.toString());
+        outerBorderCircle.setAttribute("cx", fieldOffsetX.toString());
+        // innerCircle stays centered
+        updateSectorPath();
+
+        // update numeric display
+        boundaryOffsetValue.textContent = fieldOffsetX.toString();
+      }
+
+      // ARROWS -------------------------------------------------------------------
+      function getArrowById(id) {
+        return arrows.find((a) => a.id === id);
+      }
+
+      function updateArrowVisual(arrow) {
+        arrow.lineEl.setAttribute("x1", arrow.x1.toString());
+        arrow.lineEl.setAttribute("y1", arrow.y1.toString());
+        arrow.lineEl.setAttribute("x2", arrow.x2.toString());
+        arrow.lineEl.setAttribute("y2", arrow.y2.toString());
+        arrow.lineEl.setAttribute("stroke", arrow.color);
+        arrow.lineEl.setAttribute("stroke-width", arrow.width.toString());
+        arrow.lineEl.setAttribute("opacity", arrow.opacity.toString());
+
+        if (arrow.markerPathEl) {
+          arrow.markerPathEl.setAttribute("fill", arrow.color);
+        }
+
+        arrow.handleStartEl.setAttribute("stroke", arrow.color);
+        arrow.handleEndEl.setAttribute("stroke", arrow.color);
+        arrow.handleStartEl.setAttribute("fill", arrow.color);
+        arrow.handleEndEl.setAttribute("fill", arrow.color);
+
+        arrow.handleStartEl.setAttribute("cx", arrow.x1.toString());
+        arrow.handleStartEl.setAttribute("cy", arrow.y1.toString());
+        arrow.handleEndEl.setAttribute("cx", arrow.x2.toString());
+        arrow.handleEndEl.setAttribute("cy", arrow.y2.toString());
+      }
+
+      function updateHandlesVisibilityGlobal() {
+        const hide = hideArrowHandlesCheckbox.checked;
+        arrows.forEach((arrow) => {
+          arrow.handleStartEl.style.display = hide ? "none" : "block";
+          arrow.handleEndEl.style.display = hide ? "none" : "block";
+        });
+      }
+
+      function rebuildArrowList() {
+        arrowList.innerHTML = "";
+        arrows.forEach((arrow, idx) => {
+          const row = document.createElement("div");
+          row.className = "arrow-row";
+
+          const header = document.createElement("div");
+          header.className = "arrow-row-header";
+          header.textContent = `Arrow ${idx + 1}`;
+          row.appendChild(header);
+
+          const controls = document.createElement("div");
+          controls.className = "arrow-row-controls";
+
+          const colorLabel = document.createElement("span");
+          colorLabel.textContent = "Color";
+          colorLabel.style.fontSize = "0.75rem";
+
+          const colorInput = document.createElement("input");
+          colorInput.type = "color";
+          colorInput.value = arrow.color;
+
+          const widthLabel = document.createElement("span");
+          widthLabel.textContent = "Width";
+          widthLabel.style.fontSize = "0.75rem";
+
+          const widthInput = document.createElement("input");
+          widthInput.type = "range";
+          widthInput.min = "0.4";
+          widthInput.max = "3";
+          widthInput.step = "0.1";
+          widthInput.value = arrow.width.toString();
+
+          const deleteBtn = document.createElement("button");
+          deleteBtn.type = "button";
+          deleteBtn.textContent = "Delete";
+
+          controls.appendChild(colorLabel);
+          controls.appendChild(colorInput);
+          controls.appendChild(widthLabel);
+          controls.appendChild(widthInput);
+          controls.appendChild(deleteBtn);
+
+          row.appendChild(controls);
+          arrowList.appendChild(row);
+
+          colorInput.addEventListener("input", () => {
+            arrow.color = colorInput.value;
+            updateArrowVisual(arrow);
+          });
+
+          widthInput.addEventListener("input", () => {
+            arrow.width = parseFloat(widthInput.value);
+            updateArrowVisual(arrow);
+          });
+
+          deleteBtn.addEventListener("click", () => {
+            arrowsGroup.removeChild(arrow.lineEl);
+            arrowsGroup.removeChild(arrow.handleStartEl);
+            arrowsGroup.removeChild(arrow.handleEndEl);
+            if (arrow.markerEl && defs.contains(arrow.markerEl)) {
+              defs.removeChild(arrow.markerEl);
+            }
+            const idxInArr = arrows.findIndex((a) => a.id === arrow.id);
+            if (idxInArr >= 0) arrows.splice(idxInArr, 1);
+            rebuildArrowList();
+          });
+        });
+      }
+
+      function createArrow() {
+        const id = nextArrowId++;
+        const x1 = -10;
+        const y1 = 0;
+        const x2 = 10;
+        const y2 = 0;
+        const baseColor = "#b91c1c";
+
+        const line = document.createElementNS(SVG_NS, "line");
+        line.classList.add("arrow-line");
+        line.dataset.id = id.toString();
+        line.setAttribute("x1", x1.toString());
+        line.setAttribute("y1", y1.toString());
+        line.setAttribute("x2", x2.toString());
+        line.setAttribute("y2", y2.toString());
+        line.setAttribute("stroke", baseColor);
+        line.setAttribute("stroke-width", "1.2");
+        line.setAttribute("opacity", "0.85");
+
+        const markerId = "arrowHead-" + id;
+        const marker = document.createElementNS(SVG_NS, "marker");
+        marker.setAttribute("id", markerId);
+        marker.setAttribute("viewBox", "0 0 10 10");
+        marker.setAttribute("refX", "9");
+        marker.setAttribute("refY", "5");
+        marker.setAttribute("markerWidth", "4");
+        marker.setAttribute("markerHeight", "4");
+        marker.setAttribute("orient", "auto-start-reverse");
+
+        const markerPath = document.createElementNS(SVG_NS, "path");
+        markerPath.setAttribute("d", "M 0 0 L 10 5 L 0 10 z");
+        markerPath.setAttribute("fill", baseColor);
+        marker.appendChild(markerPath);
+        defs.appendChild(marker);
+
+        line.setAttribute("marker-end", "url(#" + markerId + ")");
+
+        const handleStart = document.createElementNS(SVG_NS, "circle");
+        handleStart.classList.add("arrow-handle");
+        handleStart.dataset.id = id.toString();
+        handleStart.dataset.handle = "start";
+        handleStart.setAttribute("r", "1.4");
+
+        const handleEnd = document.createElementNS(SVG_NS, "circle");
+        handleEnd.classList.add("arrow-handle");
+        handleEnd.dataset.id = id.toString();
+        handleEnd.dataset.handle = "end";
+        handleEnd.setAttribute("r", "1.4");
+
+        arrowsGroup.appendChild(line);
+        arrowsGroup.appendChild(handleStart);
+        arrowsGroup.appendChild(handleEnd);
+
+        const arrow = {
+          id,
+          x1,
+          y1,
+          x2,
+          y2,
+          color: baseColor,
+          width: 1.2,
+          opacity: 0.85,
+          lineEl: line,
+          handleStartEl: handleStart,
+          handleEndEl: handleEnd,
+          markerEl: marker,
+          markerPathEl: markerPath,
+        };
+        arrows.push(arrow);
+        updateArrowVisual(arrow);
+        rebuildArrowList();
+        updateHandlesVisibilityGlobal();
+      }
+
+      function arrowPointerDown(evt, target) {
+        const id = parseInt(target.dataset.id || "-1", 10);
+        if (isNaN(id)) return;
+        const arrow = getArrowById(id);
+        if (!arrow) return;
+
+        activeArrow = arrow;
+        if (target.classList.contains("arrow-line")) {
+          arrowDragMode = "move";
+        } else {
+          arrowDragMode = target.dataset.handle === "start" ? "start" : "end";
+        }
+
+        prevArrowPointer = getSvgCoords(evt);
+        evt.preventDefault();
+      }
+
+      function arrowPointerMove(evt) {
+        if (!activeArrow || !arrowDragMode) return;
+        const p = getSvgCoords(evt);
+
+        if (arrowDragMode === "move") {
+          const dx = p.x - prevArrowPointer.x;
+          const dy = p.y - prevArrowPointer.y;
+          prevArrowPointer = p;
+
+          const p1 = clampToCircle(
+            activeArrow.x1 + dx,
+            activeArrow.y1 + dy,
+            FIELD_RADIUS
+          );
+          const p2 = clampToCircle(
+            activeArrow.x2 + dx,
+            activeArrow.y2 + dy,
+            FIELD_RADIUS
+          );
+          activeArrow.x1 = p1.x;
+          activeArrow.y1 = p1.y;
+          activeArrow.x2 = p2.x;
+          activeArrow.y2 = p2.y;
+        } else if (arrowDragMode === "start") {
+          const p1 = clampToCircle(p.x, p.y, FIELD_RADIUS);
+          activeArrow.x1 = p1.x;
+          activeArrow.y1 = p1.y;
+        } else if (arrowDragMode === "end") {
+          const p2 = clampToCircle(p.x, p.y, FIELD_RADIUS);
+          activeArrow.x2 = p2.x;
+          activeArrow.y2 = p2.y;
+        }
+
+        updateArrowVisual(activeArrow);
+      }
+
+      // SECTOR / PIE HIGHLIGHT ---------------------------------------------------
+      function degToRad(deg) {
+        return (deg * Math.PI) / 180;
+      }
+
+      function updateSectorPath() {
+        if (!sectorEnabled) {
+          sectorPath.style.display = "none";
+          sectorPath.setAttribute("d", "");
+          return;
+        }
+
+        sectorPath.style.display = "block";
+
+        let start = sectorStartDeg % 360;
+        let end = sectorEndDeg % 360;
+        if (start < 0) start += 360;
+        if (end < 0) end += 360;
+
+        let delta = end - start;
+        if (delta <= 0) {
+          delta += 360;
+        }
+        const largeArcFlag = delta > 180 ? 1 : 0;
+        const sweepFlag = 1;
+
+        const R = FIELD_RADIUS;
+        const CX = fieldOffsetX;
+        const startRad = degToRad(start);
+        const endRad = degToRad(end);
+
+        const x1 = CX + R * Math.cos(startRad);
+        const y1 = R * Math.sin(startRad);
+        const x2 = CX + R * Math.cos(endRad);
+        const y2 = R * Math.sin(endRad);
+
+        const d = [
+          "M", CX, 0,
+          "L", x1, y1,
+          "A", R, R, 0, largeArcFlag, sweepFlag, x2, y2,
+          "Z"
+        ].join(" ");
+
+        sectorPath.setAttribute("d", d);
+      }
+
+      // WIND LEGEND --------------------------------------------------------------
+      function updateWindVisibility() {
+        windLegend.style.display = windVisibleCheckbox.checked ? "block" : "none";
+      }
+
+      function updateWindDirection() {
+        const angle = windDirection === "right" ? 0 : 180;
+        // rotate around its own center (0,0 in local coords), then translated to top-right
+        windArrowGroup.setAttribute(
+          "transform",
+          "translate(60,-60) rotate(" + angle + ")"
+        );
+      }
+
+      // POINTER HANDLING ---------------------------------------------------------
+      function handlePointerDown(evt) {
+        const target = evt.target;
+
+        if (
+          target.classList.contains("arrow-line") ||
+          target.classList.contains("arrow-handle")
+        ) {
+          arrowPointerDown(evt, target);
+          return;
+        }
+
+        if (target.classList.contains("fielder-circle")) {
+          const idx = parseInt(target.dataset.index || "-1", 10);
+          if (!isNaN(idx) && idx >= 0 && idx < fielders.length) {
+            activeFielder = fielders[idx];
+            target.style.cursor = "grabbing";
+            evt.preventDefault();
+          }
+          return;
+        }
+      }
+
+      function handlePointerMove(evt) {
+        if (activeFielder) {
+          const { x, y } = getSvgCoords(evt);
+          const clamped = clampToCircle(
+            x,
+            y,
+            FIELD_RADIUS - fielderSize * 0.8
+          );
+          const displayX = clamped.x;
+          const displayY = clamped.y;
+          activeFielder.x = isMirrored ? -displayX : displayX;
+          activeFielder.y = displayY;
+          updateFielderVisual(activeFielder);
+        }
+
+        if (activeArrow) {
+          arrowPointerMove(evt);
+        }
+      }
+
+      function handlePointerUp() {
+        if (activeFielder && activeFielder.circle) {
+          activeFielder.circle.style.cursor = "grab";
+        }
+        activeFielder = null;
+
+        activeArrow = null;
+        arrowDragMode = null;
+        prevArrowPointer = null;
+      }
+
+      // EVENTS -------------------------------------------------------------------
+      svg.addEventListener("pointerdown", handlePointerDown);
+      svg.addEventListener("pointermove", handlePointerMove);
+      svg.addEventListener("pointerup", handlePointerUp);
+      svg.addEventListener("pointerleave", handlePointerUp);
+
+      sizeSlider.addEventListener("input", () => {
+        fielderSize = parseFloat(sizeSlider.value);
+        updateAllFielders();
       });
 
-      const pctInts = { yorker: pYorker, full: pFull, good: pGood, short: pShort };
-
-      // Zones geometry + labels + colours + text size
-      ['yorker','full','good','short'].forEach(key => {
-        const zoneEl = zones[key];
-        const { absFrom, absTo } = lengths[key];
-
-        const heightPct = ((absTo - absFrom) / STRIP_LENGTH_M) * 100;
-        const topPct    = worldToCssTop(absTo);
-
-        zoneEl.style.height = heightPct + '%';
-        zoneEl.style.top    = topPct + '%';
-        zoneEl.style.bottom = 'auto';
-
-        const name = key.charAt(0).toUpperCase() + key.slice(1);
-        const pctDisplay = pctInts[key] ?? 0;
-        const labelSpan = zoneEl.querySelector('.zone-label');
-        const pctSpan   = zoneEl.querySelector('.zone-pct-value');
-
-        labelSpan.textContent = name;
-        pctSpan.textContent   = pctDisplay.toString();
-
-        const selectedColor = colorInputs[key].value;
-        const hex = getColorHex(selectedColor);
-        const lum = relativeLuminance(hex);
-        const textColor = lum > 0.6 ? '#2b2b2b' : '#fdfdfd';
-
-        zoneEl.style.background = hex;
-        zoneEl.style.color = textColor;
-
-        // uniform font size (no depth-based scaling)
-        zoneEl.style.fontSize = zoneFontSizeRem.toFixed(2) + 'rem';
+      boundaryOffsetInput.addEventListener("input", () => {
+        updateFieldOffset();
       });
 
-      // Place stumps
-      stumpsBottomEl.style.top = worldToCssTop(bottomStumpsAbs) + '%';
-      stumpsTopEl.style.top    = worldToCssTop(topStumpsAbs) + '%';
+      allFielderColorInput.addEventListener("input", () => {
+        const col = allFielderColorInput.value;
+        fielders.forEach((f) => {
+          f.color = col;
+        });
+        updateAllFielders();
+      });
 
-      // Stump lines
-      stumpLineBottomEl.style.top = worldToCssTop(bottomLineAbs) + '%';
-      stumpLineTopEl.style.top    = worldToCssTop(topLineAbs) + '%';
+      mirrorToggle.addEventListener("change", () => {
+        isMirrored = mirrorToggle.checked;
+        updateSideLabels();
+        updateAllFielders();
+      });
 
-      // Wide guidelines: between batter's popping crease and batter stump-line
-      const bottomCreaseAbs = 0;
-      const topCreaseAbs    = STRIP_LENGTH_M;
+      hideAllLabels.addEventListener("change", () => {
+        labelsHiddenAll = hideAllLabels.checked;
+        updateAllFielders();
+      });
 
-      const batterCreaseAbs = flipEnds ? topCreaseAbs : bottomCreaseAbs;
-      const batterLineAbs   = flipEnds ? topLineAbs   : bottomLineAbs;
+      addArrowBtn.addEventListener("click", () => {
+        createArrow();
+      });
 
-      const creasePct = worldToCssTop(batterCreaseAbs);
-      const linePct   = worldToCssTop(batterLineAbs);
+      hideArrowHandlesCheckbox.addEventListener("change", () => {
+        updateHandlesVisibilityGlobal();
+      });
 
-      const wideTopPct    = Math.min(creasePct, linePct);
-      const wideHeightPct = Math.abs(creasePct - linePct);
+      sectorEnabledCheckbox.addEventListener("change", () => {
+        sectorEnabled = sectorEnabledCheckbox.checked;
+        updateSectorPath();
+      });
 
-      wideLeftEl.style.top    = wideTopPct + '%';
-      wideRightEl.style.top   = wideTopPct + '%';
-      wideLeftEl.style.height = wideHeightPct + '%';
-      wideRightEl.style.height= wideHeightPct + '%';
-    }
+      sectorStartInput.addEventListener("input", () => {
+        sectorStartDeg = parseFloat(sectorStartInput.value) || 0;
+        updateSectorPath();
+      });
 
-    Object.values(rangeInputs).forEach(pair => {
-      pair.from.addEventListener('input', update);
-      pair.to.addEventListener('input', update);
-    });
+      sectorEndInput.addEventListener("input", () => {
+        sectorEndDeg = parseFloat(sectorEndInput.value) || 0;
+        updateSectorPath();
+      });
 
-    Object.values(pctInputs).forEach(input => {
-      input.addEventListener('input', update);
-    });
+      windVisibleCheckbox.addEventListener("change", () => {
+        updateWindVisibility();
+      });
 
-    Object.values(colorInputs).forEach(sel => {
-      sel.addEventListener('change', update);
-    });
+      windDirectionInputs.forEach((input) => {
+        input.addEventListener("change", (e) => {
+          if (e.target.checked) {
+            windDirection = e.target.value;
+            updateWindDirection();
+          }
+        });
+      });
 
-    textSizeInput.addEventListener('input', update);
-    tiltInput.addEventListener('input', update);
-    flipEndsInput.addEventListener('change', update);
+      // Fielder count radio events
+      fielderCountInputs.forEach((input) => {
+        input.addEventListener("change", (e) => {
+          if (e.target.checked) {
+            fielderCountMode = parseInt(e.target.value, 10);
+            updateAllFielders();
+          }
+        });
+      });
 
-    // Initial render
-    flipEndsInput.checked = true;
-    update();
+      // INIT ---------------------------------------------------------------------
+      createInitialFielders();
+      buildFielderControls();
+      updateSideLabels();
+      updateFieldOffset();
+      updateSectorPath();
+      updateWindVisibility();
+      updateWindDirection();
+    })();
   </script>
 </body>
 </html>
