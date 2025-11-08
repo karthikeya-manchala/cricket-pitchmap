@@ -652,10 +652,18 @@
       const angle = parseFloat(tiltInput.value) || 0;
       tiltValue.textContent = angle.toFixed(0) + '°';
       const maxAngle = 60;
-      const minScale = 0.6;               // when angle = 0°
-      const scale = minScale + (angle / maxAngle) * (1 - minScale);
-      const baseOffset = -500;            // offset used at max tilt
-      const offset = (angle / maxAngle) * baseOffset;
+      const minScale = 0.6;
+      const maxScale = 1;
+      
+      // how far up the pitch is at 0° vs 60°
+      const flatOffset = -250;       // tweak this
+      const maxTiltOffset = -500;    // tweak this
+      
+      const t = angle / maxAngle;
+      
+      const scale = minScale + t * (maxScale - minScale);
+      const offset = flatOffset + t * (maxTiltOffset - flatOffset);
+      
       pitchEl.style.transform = `translateY(${offset}px) scale(${scale}) rotateX(${angle}deg)`;
 
       // Physical positions for stumps & stump-lines
