@@ -60,7 +60,7 @@
       background: #e2c9a3; /* light pitch brown */
       box-shadow: 0 4px 12px rgba(0,0,0,0.12);
       transform-origin: bottom center;
-      transform: translateY(-500px) rotateX(55deg); /* tilt for fake 3D */
+      /* transform set dynamically via JS */
     }
 
     .pitch-background {
@@ -150,8 +150,8 @@
 
     .zone {
       position: absolute;
-      left: 10%;
-      right: 10%;
+      left: 0;            /* now full width */
+      right: 0;           /* now full width */
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -167,11 +167,13 @@
 
     .zone-label {
       opacity: 0.92;
+      margin-left: 10%;   /* keep label away from edge */
     }
 
     .zone-pct {
       font-variant-numeric: tabular-nums;
       opacity: 0.9;
+      margin-right: 10%;  /* keep % away from edge */
     }
 
     /* Info row below pitch */
@@ -316,11 +318,6 @@
 
     .palette-item span {
       font-weight: 500;
-    }
-
-    .palette-colors {
-      display: flex;
-      gap: 4px;
     }
 
     .color-swatch {
@@ -555,6 +552,22 @@
           Adjust label size (same size for all zones).
         </div>
       </div>
+
+      <!-- 3D TILT SLIDER -->
+      <div class="tilt-row" style="margin-top:10px; border-top:1px dashed #e0d7c8; padding-top:10px;">
+        <label for="tilt-angle"
+               style="font-size:0.8rem; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; color:#777; display:block; margin-bottom:4px;">
+          3D tilt
+        </label>
+        <div style="display:flex; align-items:center; gap:8px; font-size:0.8rem;">
+          <input id="tilt-angle" type="range" min="0" max="60" step="1" value="55" style="flex:1;">
+          <span id="tilt-angle-value">55°</span>
+        </div>
+        <div style="font-size:0.75rem; color:#999; margin-top:2px;">
+          0° = top-down, 60° = strong 3D tilt.
+        </div>
+      </div>
+
     </div>
   </div>
 
@@ -614,9 +627,13 @@
 
     const totalPctLabel = document.getElementById('total-pct');
 
-    // NEW: text size slider
     const textSizeInput = document.getElementById('text-size');
     const textSizeValue = document.getElementById('text-size-value');
+
+    // Tilt slider
+    const tiltInput = document.getElementById('tilt-angle');
+    const tiltValue = document.getElementById('tilt-angle-value');
+    const pitchEl = document.getElementById('pitch');
 
     const flipEndsInput = document.getElementById('flip-ends');
     let flipEnds = false;
@@ -678,6 +695,14 @@
       textSizeValue.textContent = textScale.toFixed(2);
       const baseFontSizeRem = 0.9;
       const zoneFontSizeRem = baseFontSizeRem * textScale;
+
+      // 3D tilt
+      const angle = parseFloat(tiltInput.value) || 0;
+      tiltValue.textContent = angle.toFixed(0) + '°';
+      const maxAngle = 60;
+      const baseOffset = -500;               // offset used at max tilt
+      const offset = (angle / maxAngle) * baseOffset;
+      pitchEl.style.transform = `translateY(${offset}px) rotateX(${angle}deg)`;
 
       // Physical positions for stumps & stump-lines
       const bottomStumpsAbs = STUMP_OFFSET_M;
@@ -811,6 +836,7 @@
     });
 
     textSizeInput.addEventListener('input', update);
+    tiltInput.addEventListener('input', update);
     flipEndsInput.addEventListener('change', update);
 
     // Initial render
