@@ -110,7 +110,7 @@
     }
 
     .stumps-top { /* top set via JS */ }
-    .stumps-bottom { /* top set via JS */ }
+    .stumps-bottom { /* bottom set via JS */ }
 
     /* Stump lines just in front of the stumps */
 
@@ -123,9 +123,9 @@
     }
 
     .stump-line-top { /* top via JS */ }
-    .stump-line-bottom { /* top via JS */ }
+    .stump-line-bottom { /* bottom via JS */ }
 
-    /* Wide guidelines at batter's end */
+    /* Wide guidelines */
 
     .wide-guideline {
       position: absolute;
@@ -338,21 +338,6 @@
       border-radius: 6px;
       border: 1px solid #c8b79a;
       background: #fcfaf6;
-    }
-
-    .range-help {
-      margin-top: 10px;
-      font-size: 0.78rem;
-      color: #777;
-    }
-
-    .range-help ul {
-      padding-left: 18px;
-      margin: 6px 0 0;
-    }
-
-    .range-help li {
-      margin-bottom: 2px;
     }
 
     .muted {
@@ -581,7 +566,7 @@
   <script>
     const STRIP_LENGTH_M = 22.56;   // popping to popping
     const STUMP_OFFSET_M = 1.22;    // from popping crease to stumps
-    const PITCH_LENGTH_M = 20.12;   // stumps to stumps
+    const LINE_OFFSET_M  = 0.25;    // stump line in front of stumps
 
     const pctInputs = {
       yorker: document.getElementById('pct-yorker'),
@@ -640,18 +625,14 @@
     const flipEndsInput = document.getElementById('flip-ends');
     let flipEnds = false;
 
-    const creaseBowlingEl = document.querySelector('.crease-bowling');
-    const creaseBattingEl = document.querySelector('.crease-batting');
-
     function clamp(value, min, max) {
       return Math.max(min, Math.min(max, value));
     }
 
-    function stripToTopPct(absPos) {
-      // absPos: metres from batter's popping crease
-      const frac = absPos / STRIP_LENGTH_M;
-      // if flipEnds is true, batter is at the top; otherwise batter is at the bottom
-      return flipEnds ? (frac * 100) : ((1 - frac) * 100);
+    // Map physical distance along strip (0 = bottom crease, STRIP_LENGTH = top crease)
+    // to CSS top percentage (0 = top of div, 100 = bottom).
+    function worldToCssTop(s) {
+      return (1 - s / STRIP_LENGTH_M) * 100;
     }
 
     function getColorHex(name) {
@@ -685,7 +666,6 @@
     }
 
     function update() {
-      // ensure flipEnds reflects the checkbox state
       flipEnds = flipEndsInput.checked;
 
       // Percentages (display as whole numbers)
@@ -697,24 +677,16 @@
       const total = pYorker + pFull + pGood + pShort;
       totalPctLabel.textContent = total.toString();
 
-      // Update depth slider label
+      // Depth slider
       const userScale = parseFloat(depthScaleInput.value) || 0;
       depthScaleValue.textContent = userScale.toFixed(2);
 
-      // Move creases depending on which end is batter
-      if (flipEnds) {
-        // batter at top
-        creaseBattingEl.style.top = '0';
-        creaseBattingEl.style.bottom = 'auto';
-        creaseBowlingEl.style.bottom = '0';
-        creaseBowlingEl.style.top = 'auto';
-      } else {
-        // batter at bottom (default)
-        creaseBattingEl.style.bottom = '0';
-        creaseBattingEl.style.top = 'auto';
-        creaseBowlingEl.style.top = '0';
-        creaseBowlingEl.style.bottom = 'auto';
-      }
+      // Physical positions for stumps & stump-lines (fixed, regardless of batter end)
+      const bottomStumpsAbs = STUMP_OFFSET_M;
+      const topStumpsAbs    = STRIP_LENGTH_M - STUMP_OFFSET_M;
+
+      const bottomLineAbs = bottomStumpsAbs + LINE_OFFSET_M;
+      const topLineAbs    = topStumpsAbs - LINE_OFFSET_M;
 
       // Ranges & zone placement (inputs are metres from batter's stumps)
       const lengths = {};
@@ -731,24 +703,43 @@
           toD = tmp;
         }
 
-        let absFrom = STUMP_OFFSET_M + fromD;
-        let absTo   = STUMP_OFFSET_M + toD;
+        let absFrom, absTo;
 
-        absFrom = clamp(absFrom, 0, STRIP_LENGTH_M);
-        absTo   = clamp(absTo,   0, STRIP_LENGTH_M);
+        if (!flipEnds) {
+          // Batter at bottom: distances measured from bottom stumps upward
+          let aFrom = bottomStumpsAbs + fromD;
+          let aTo   = bottomStumpsAbs + toD;
+
+          aFrom = clamp(aFrom, 0, STRIP_LENGTH_M);
+          aTo   = clamp(aTo,   0, STRIP_LENGTH_M);
+
+          absFrom = Math.min(aFrom, aTo);
+          absTo   = Math.max(aFrom, aTo);
+        } else {
+          // Batter at top: distances measured from top stumps downward
+          const topStumps = topStumpsAbs;
+          let near = topStumps - fromD;
+          let far  = topStumps - toD;
+
+          near = clamp(near, 0, STRIP_LENGTH_M);
+          far  = clamp(far,  0, STRIP_LENGTH_M);
+
+          absFrom = Math.min(near, far);
+          absTo   = Math.max(near, far);
+        }
 
         lengths[key] = { absFrom, absTo, fromD, toD };
       });
 
       const pctInts = { yorker: pYorker, full: pFull, good: pGood, short: pShort };
 
-      // Update zones geometry + labels + colours + font size scaling
+      // Zones geometry + labels + colours + font size scaling
       ['yorker','full','good','short'].forEach(key => {
         const zoneEl = zones[key];
         const { absFrom, absTo, fromD, toD } = lengths[key];
 
-        const heightPct  = ((absTo - absFrom) / STRIP_LENGTH_M) * 100;
-        const topPct     = stripToTopPct(absTo);
+        const heightPct = ((absTo - absFrom) / STRIP_LENGTH_M) * 100;
+        const topPct    = worldToCssTop(absTo);  // anchor at the end further from batter
 
         zoneEl.style.height = heightPct + '%';
         zoneEl.style.top    = topPct + '%';
@@ -777,43 +768,38 @@
           legendDot.style.border = '1px solid rgba(0,0,0,0.15)';
         }
 
-        // text size scaling by distance (use midpoint distance)
+        // text size scaling by distance (midpoint of range)
         const distanceFromBatter = (fromD + toD) / 2;
         const baseFontSizeRem = 0.9;
         const scaleFactor = 1 + (distanceFromBatter / STRIP_LENGTH_M) * userScale;
         zoneEl.style.fontSize = (baseFontSizeRem * scaleFactor).toFixed(2) + 'rem';
       });
 
-      // Stumps positions: 1.22 m from each popping crease
-      const batterStumpAbs = STUMP_OFFSET_M;
-      const bowlerStumpAbs = STRIP_LENGTH_M - STUMP_OFFSET_M;
+      // Place stumps (physical positions, unchanged by flip)
+      stumpsBottomEl.style.top = worldToCssTop(bottomStumpsAbs) + '%';
+      stumpsTopEl.style.top    = worldToCssTop(topStumpsAbs) + '%';
 
-      const batterStumpPct = stripToTopPct(batterStumpAbs);
-      const bowlerStumpPct = stripToTopPct(bowlerStumpAbs);
+      // Stump lines (physical)
+      stumpLineBottomEl.style.top = worldToCssTop(bottomLineAbs) + '%';
+      stumpLineTopEl.style.top    = worldToCssTop(topLineAbs) + '%';
 
-      stumpsBottomEl.style.top = flipEnds ? bowlerStumpPct + '%' : batterStumpPct + '%';
-      stumpsTopEl.style.top    = flipEnds ? batterStumpPct + '%' : bowlerStumpPct + '%';
+      // Wide guidelines: between batter's popping crease and batter stump-line
+      const bottomCreaseAbs = 0;
+      const topCreaseAbs    = STRIP_LENGTH_M;
 
-      // Stump lines: just in front of each set of stumps (0.25 m towards bowler)
-      const LINE_OFFSET_M = 0.25;
-      const batterLineAbs = batterStumpAbs + LINE_OFFSET_M;
-      const bowlerLineAbs = bowlerStumpAbs - LINE_OFFSET_M;
+      const batterCreaseAbs = flipEnds ? topCreaseAbs : bottomCreaseAbs;
+      const batterLineAbs   = flipEnds ? topLineAbs   : bottomLineAbs;
 
-      const batterLinePct = stripToTopPct(batterLineAbs);
-      const bowlerLinePct = stripToTopPct(bowlerLineAbs);
+      const creasePct = worldToCssTop(batterCreaseAbs);
+      const linePct   = worldToCssTop(batterLineAbs);
 
-      stumpLineBottomEl.style.top = flipEnds ? bowlerLinePct + '%' : batterLinePct + '%';
-      stumpLineTopEl.style.top    = flipEnds ? batterLinePct + '%' : bowlerLinePct + '%';
+      const wideTopPct    = Math.min(creasePct, linePct);
+      const wideHeightPct = Math.abs(creasePct - linePct);
 
-      // Wide guidelines: always between batter's popping crease (abs=0) and batter stump-line
-      const creasePct = stripToTopPct(0);
-      const wideTopPct = Math.min(creasePct, batterLinePct);
-      const wideHeightPct = Math.abs(creasePct - batterLinePct);
-
-      wideLeftEl.style.top = wideTopPct + '%';
-      wideRightEl.style.top = wideTopPct + '%';
+      wideLeftEl.style.top    = wideTopPct + '%';
+      wideRightEl.style.top   = wideTopPct + '%';
       wideLeftEl.style.height = wideHeightPct + '%';
-      wideRightEl.style.height = wideHeightPct + '%';
+      wideRightEl.style.height= wideHeightPct + '%';
     }
 
     Object.values(rangeInputs).forEach(pair => {
@@ -830,7 +816,6 @@
     });
 
     depthScaleInput.addEventListener('input', update);
-
     flipEndsInput.addEventListener('change', update);
 
     // Initial render
