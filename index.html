@@ -447,6 +447,12 @@
         <span class="badge">Meters from batter's stumps</span>
       </div>
 
+      <!-- NEW: flip checkbox -->
+      <div style="display:flex; justify-content:flex-end; align-items:center; gap:6px; font-size:0.8rem; margin-bottom:8px;">
+        <input type="checkbox" id="flip-ends" />
+        <label for="flip-ends" style="cursor:pointer;">Flip batter &amp; bowler ends</label>
+      </div>
+
       <div class="controls-grid">
         <div></div>
         <div class="controls-grid-header">Length range (m)</div>
@@ -555,7 +561,7 @@
         </div>
       </div>
 
-      <!-- NEW: text depth scaling slider -->
+      <!-- text depth scaling slider -->
       <div class="depth-row" style="margin-top:14px; border-top:1px dashed #e0d7c8; padding-top:10px;">
         <label for="depth-scale"
                style="font-size:0.8rem; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; color:#777; display:block; margin-bottom:4px;">
@@ -628,9 +634,13 @@
 
     const totalPctLabel = document.getElementById('total-pct');
 
-    // NEW: depth slider elements
+    // depth slider elements
     const depthScaleInput = document.getElementById('depth-scale');
     const depthScaleValue = document.getElementById('depth-scale-value');
+
+    // NEW: flip ends checkbox
+    const flipEndsInput = document.getElementById('flip-ends');
+    let flipEnds = false;
 
     function clamp(value, min, max) {
       return Math.max(min, Math.min(max, value));
@@ -638,7 +648,9 @@
 
     function stripToTopPct(absPos) {
       // absPos: metres from batter's popping crease (0 = batter's crease, STRIP_LENGTH_M = bowler's crease)
-      return (1 - (absPos / STRIP_LENGTH_M)) * 100;
+      const frac = absPos / STRIP_LENGTH_M;
+      // if flipEnds is true, batter is at the top; otherwise batter is at the bottom
+      return flipEnds ? (frac * 100) : ((1 - frac) * 100);
     }
 
     function getColorHex(name) {
@@ -746,7 +758,7 @@
           legendDot.style.border = '1px solid rgba(0,0,0,0.15)';
         }
 
-        // NEW: text size scaling by distance
+        // text size scaling by distance
         const distanceFromBatter = absFrom; // metres from batter
         const baseFontSizeRem = 0.9;
         // zones further away grow by up to +userScale factor
@@ -754,12 +766,13 @@
         zoneEl.style.fontSize = (baseFontSizeRem * scaleFactor).toFixed(2) + 'rem';
       });
 
-      // Stumps positions (1.22 m from each popping crease), batter now at bottom
+      // Stumps positions (1.22 m from each popping crease)
       const batterStumpPct = stripToTopPct(STUMP_OFFSET_M);
       const bowlerStumpPct = stripToTopPct(STRIP_LENGTH_M - STUMP_OFFSET_M);
 
-      stumpsBottomEl.style.top = batterStumpPct + '%';   // batter's stumps at bottom
-      stumpsTopEl.style.top    = bowlerStumpPct + '%';   // bowler's stumps at top
+      // When flipEnds = false, batter is at bottom; when true, batter is at top
+      stumpsBottomEl.style.top = batterStumpPct + '%';
+      stumpsTopEl.style.top    = bowlerStumpPct + '%';
 
       // Stump lines: just in front of each set of stumps (0.25 m towards bowler)
       const LINE_OFFSET_M = 0.25;
@@ -772,7 +785,7 @@
       stumpLineBottomEl.style.top = batterLinePct + '%';
       stumpLineTopEl.style.top    = bowlerLinePct + '%';
 
-      // Wide guidelines: from batter's popping crease (bottom) up to batter stump-line
+      // Wide guidelines: from batter's popping crease up to batter stump-line
       wideLeftEl.style.top  = batterLinePct + '%';
       wideRightEl.style.top = batterLinePct + '%';
 
@@ -794,8 +807,14 @@
       sel.addEventListener('change', update);
     });
 
-    // NEW: depth slider listener
+    // depth slider listener
     depthScaleInput.addEventListener('input', update);
+
+    // NEW: flip checkbox listener
+    flipEndsInput.addEventListener('change', () => {
+      flipEnds = flipEndsInput.checked;
+      update();
+    });
 
     // Initial render
     update();
